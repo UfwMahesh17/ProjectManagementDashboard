@@ -3,6 +3,14 @@ app.py — Adwik Intellimech | Workflow Analytics System
 Run: streamlit run app.py
 """
 
+# ── PATH FIX (must be before all local imports) ───────────────────────────────
+# Streamlit Cloud runs from a different cwd than the repo root.
+# This ensures `modules/` is always found relative to THIS file.
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# ─────────────────────────────────────────────────────────────────────────────
+
 import streamlit as st
 from datetime import date, timedelta
 
@@ -63,12 +71,9 @@ st.divider()
 # ── Tabs: one per department ──────────────────────────────────────────────────
 dept_tabs = st.tabs([f"📋 {d['name']}" for d in DEPARTMENTS] + ["📊 Analytics", "📥 Report"])
 
-# Accumulate dept results across tabs using session state
 if "dept_results" not in st.session_state:
     st.session_state.dept_results = {}
 
-# We need to track predecessor delay across departments as we render
-# Use a first-pass placeholder of 0 for all (will be updated after submission)
 predecessor_delay_map: dict[str, int] = {d["name"]: 0 for d in DEPARTMENTS}
 
 # ── Render each Department tab ────────────────────────────────────────────────
@@ -104,7 +109,6 @@ for tab_obj, dept in zip(dept_tabs[:len(DEPARTMENTS)], DEPARTMENTS):
 
 # ── Run Analysis ──────────────────────────────────────────────────────────────
 if run_analysis:
-    # Build DepartmentResult objects (no delays yet — predecessor_delay=0)
     raw_results: list[DepartmentResult] = []
     for dept in DEPARTMENTS:
         tl_entry = next(t for t in timeline if t["name"] == dept["name"])
@@ -114,19 +118,13 @@ if run_analysis:
             order=dept["order"],
             project_start=tl_entry["original_start"],
             predecessor_delay=0,
-            parts=[
-                PartEntry(**p) for p in dept_part_inputs[dept["name"]]
-            ],
+            parts=[PartEntry(**p) for p in dept_part_inputs[dept["name"]]],
         )
         raw_results.append(dr)
 
-    # Cascade delays
     final_results = propagate_delays(raw_results)
-
-    # Persist
     for dr in final_results:
         st.session_state.dept_results[dr.name] = dr
-
     st.toast("✅ Analysis complete! See the Analytics tab.", icon="📊")
 
 
@@ -138,19 +136,13 @@ with dept_tabs[-2]:
     else:
         sorted_results = sorted(results, key=lambda r: r.order)
 
-        # KPI row
         st.markdown("### 📈 Project KPIs")
         kpi_cols = st.columns(5)
         for col, dr in zip(kpi_cols, sorted_results):
             with col:
-                metric_card(
-                    dr.name,
-                    f"{dr.avg_marks:.0f}",
-                    color=marks_color(dr.avg_marks),
-                )
+                metric_card(dr.name, f"{dr.avg_marks:.0f}", color=marks_color(dr.avg_marks))
         st.markdown("")
 
-        # Overall project score
         all_marks = [dr.avg_marks for dr in sorted_results]
         overall = sum(all_marks) / len(all_marks) if all_marks else 0
         total_delay = sum(dr.actual_delay_out for dr in sorted_results)
@@ -167,32 +159,18 @@ with dept_tabs[-2]:
             metric_card("Parts Complete", f"{complete} / {total_p}", color="#1ABC9C")
 
         st.divider()
+        st.plotly_chart(gantt_chart(sorted_results, project_start), use_container_width=True)
+        st.plotly_chart(efficiency_bar_chart(sorted_results), use_container_width=True)
 
-        # Gantt
-        st.plotly_chart(
-            gantt_chart(sorted_results, project_start),
-            use_container_width=True,
-        )
-
-        # Efficiency bar
-        st.plotly_chart(
-            efficiency_bar_chart(sorted_results),
-            use_container_width=True,
-        )
-
-        # Mini gauges row
         st.markdown("### 🎯 Per-Department Marks")
         g_cols = st.columns(len(sorted_results))
         for col, dr in zip(g_cols, sorted_results):
             with col:
                 st.plotly_chart(marks_gauge(dr.name, dr.avg_marks), use_container_width=True)
 
-        # Delay summary table
         delayed_parts = [
-            (dr.name, p)
-            for dr in sorted_results
-            for p in dr.parts
-            if p.actual_finish and p.delay_days > 0
+            (dr.name, p) for dr in sorted_results
+            for p in dr.parts if p.actual_finish and p.delay_days > 0
         ]
         if delayed_parts:
             st.markdown("### ⚠️ Delay Summary")
@@ -200,26 +178,20 @@ with dept_tabs[-2]:
             rows = []
             for dept_name, p in delayed_parts:
                 rows.append({
-                    "Department": dept_name,
-                    "Part": p.name,
+                    "Department": dept_name, "Part": p.name,
                     "Delay Days": p.delay_days,
                     "Category": p.delay_category or "—",
                     "Type": "External 🔵" if p.is_external else "Internal 🔴",
                     "Marks": round(p.marks, 1),
                     "Reason": (p.delay_reason or "—")[:60],
                 })
-            st.dataframe(
-                pd.DataFrame(rows),
-                use_container_width=True,
-                hide_index=True,
-            )
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 # ── Report Tab ────────────────────────────────────────────────────────────────
 with dept_tabs[-1]:
     results = list(st.session_state.dept_results.values())
     st.markdown("### 📥 Download Excel Report")
-
     if not results:
         st.info("Run the analysis first to generate a report.")
     else:
@@ -237,16 +209,13 @@ with dept_tabs[-1]:
         )
         st.caption("Report includes: Summary Dashboard, Part Detail, and Delay Log sheets.")
 
-        # Preview table
         st.markdown("#### Preview — Part Detail")
         import pandas as pd
         rows = []
         for dr in sorted(results, key=lambda r: r.order):
             for p in dr.parts:
                 rows.append({
-                    "Project": project_code,
-                    "Department": dr.name,
-                    "Part": p.name,
+                    "Project": project_code, "Department": dr.name, "Part": p.name,
                     "Orig. Deadline": p.original_deadline.strftime("%d %b %Y"),
                     "Pred. Delay": f"+{p.predecessor_delay_days}d",
                     "Adj. Deadline": p.adjusted_deadline.strftime("%d %b %Y"),
