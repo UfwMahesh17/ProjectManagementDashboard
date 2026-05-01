@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 # ── Department catalogue ──────────────────────────────────────────────────────
-DEPARTMENTS: list[dict] = [
+DEFAULT_DEPARTMENTS: list[dict] = [
     {"name": "Design",       "duration": 30,  "order": 1},
     {"name": "Purchase",     "duration": 45,  "order": 2},
     {"name": "Manufacturing","duration": 60,  "order": 3},
@@ -172,7 +172,7 @@ def calculate_marks(
 
 def build_department_timeline(
     project_start: date,
-    departments: list[dict] = DEPARTMENTS,
+    departments: list[dict] = DEFAULT_DEPARTMENTS,
 ) -> list[dict]:
     """
     Returns a list of dicts with original start/end for each dept.
