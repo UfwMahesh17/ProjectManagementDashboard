@@ -7,13 +7,13 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Optional
 
-# ── Department catalogue ──────────────────────────────────────────────────────
+# ── Department catalogue (defaults) ──────────────────────────────────────────
 DEFAULT_DEPARTMENTS: list[dict] = [
-    {"name": "Design",       "duration": 30,  "order": 1},
-    {"name": "Purchase",     "duration": 45,  "order": 2},
-    {"name": "Manufacturing","duration": 60,  "order": 3},
-    {"name": "Assembly",     "duration": 10,  "order": 4},
-    {"name": "Testing",      "duration": 7,   "order": 5},
+    {"name": "Design",        "duration": 30, "order": 1},
+    {"name": "Purchase",      "duration": 45, "order": 2},
+    {"name": "Manufacturing", "duration": 60, "order": 3},
+    {"name": "Assembly",      "duration": 10, "order": 4},
+    {"name": "Testing",       "duration": 7,  "order": 5},
 ]
 
 DELAY_CATEGORIES = [
@@ -37,13 +37,15 @@ BASE_MARKS = 100
 @dataclass
 class PartEntry:
     name: str
-    original_deadline: date          # absolute date
+    original_deadline: date
     actual_finish: Optional[date]
-    predecessor_delay_days: int      # days shifted from upstream dept
+    predecessor_delay_days: int
+    planned_start: Optional[date] = None      # NEW: dept planned start date
+    planned_end: Optional[date] = None        # NEW: dept planned end date
     delay_category: Optional[str] = None
     delay_reason: Optional[str] = None
 
-    # computed (set by calculate_marks)
+    # computed
     adjusted_deadline: date = field(init=False)
     delay_days: int = field(init=False, default=0)
     marks: float = field(init=False, default=float(BASE_MARKS))
@@ -67,7 +69,7 @@ class PartEntry:
         if self.actual_finish > self.adjusted_deadline:
             self.delay_days = (self.actual_finish - self.adjusted_deadline).days
             if self.is_external:
-                self.marks = BASE_MARKS  # no penalty
+                self.marks = BASE_MARKS
             else:
                 deduction = self.delay_days * MARKS_PER_DAY_DEDUCTION
                 self.marks = max(0.0, BASE_MARKS - deduction)
@@ -82,7 +84,9 @@ class DepartmentResult:
     duration: int
     order: int
     project_start: date
-    predecessor_delay: int           # total upstream delay pushed into this dept
+    predecessor_delay: int
+    planned_start: Optional[date] = None     # NEW
+    planned_end: Optional[date] = None       # NEW
     parts: list[PartEntry] = field(default_factory=list)
 
     @property
@@ -103,8 +107,6 @@ class DepartmentResult:
 
     @property
     def avg_marks(self) -> float:
-        if not self.parts:
-            return BASE_MARKS
         finished = [p for p in self.parts if p.actual_finish is not None]
         if not finished:
             return BASE_MARKS
@@ -112,7 +114,6 @@ class DepartmentResult:
 
     @property
     def actual_delay_out(self) -> int:
-        """Days this dept delivers late beyond its shifted end — cascades forward."""
         finished = [p for p in self.parts if p.actual_finish is not None]
         if not finished:
             return 0
@@ -130,14 +131,7 @@ class DepartmentResult:
 
 # ── Core calculation functions ────────────────────────────────────────────────
 
-def calculate_shifted_deadline(
-    original_deadline: date,
-    predecessor_delay_days: int,
-) -> date:
-    """
-    Shift the department's deadline forward by the accumulated upstream delay
-    so it always receives its full contracted duration.
-    """
+def calculate_shifted_deadline(original_deadline: date, predecessor_delay_days: int) -> date:
     return original_deadline + timedelta(days=predecessor_delay_days)
 
 
@@ -146,14 +140,6 @@ def calculate_marks(
     adjusted_deadline: date,
     delay_category: Optional[str],
 ) -> tuple[float, int, bool]:
-    """
-    Returns (marks, delay_days, is_external).
-
-    Rules:
-    - On time  → 100 marks, 0 delay days
-    - External → 100 marks, N delay days logged
-    - Internal → 100 - (delay_days × 5) marks, min 0
-    """
     if actual_finish is None:
         return float(BASE_MARKS), 0, False
 
@@ -162,7 +148,6 @@ def calculate_marks(
 
     if delay_days == 0:
         return float(BASE_MARKS), 0, is_external
-
     if is_external:
         return float(BASE_MARKS), delay_days, True
 
@@ -174,38 +159,26 @@ def build_department_timeline(
     project_start: date,
     departments: list[dict] = DEFAULT_DEPARTMENTS,
 ) -> list[dict]:
-    """
-    Returns a list of dicts with original start/end for each dept.
-    Used to seed the Gantt baseline.
-    """
     timeline = []
     cursor = project_start
     for dept in departments:
-        timeline.append(
-            {
-                "name": dept["name"],
-                "order": dept["order"],
-                "duration": dept["duration"],
-                "original_start": cursor,
-                "original_end": cursor + timedelta(days=dept["duration"] - 1),
-            }
-        )
+        timeline.append({
+            "name":           dept["name"],
+            "order":          dept["order"],
+            "duration":       dept["duration"],
+            "original_start": cursor,
+            "original_end":   cursor + timedelta(days=dept["duration"] - 1),
+            "planned_start":  dept.get("planned_start"),
+            "planned_end":    dept.get("planned_end"),
+        })
         cursor += timedelta(days=dept["duration"])
     return timeline
 
 
-def propagate_delays(
-    dept_results: list[DepartmentResult],
-) -> list[DepartmentResult]:
-    """
-    Walk departments in order. Each dept's predecessor_delay = sum of all
-    actual delays from prior departments (cascading shift).
-    Returns the same list mutated with updated predecessor_delay values.
-    """
+def propagate_delays(dept_results: list[DepartmentResult]) -> list[DepartmentResult]:
     cumulative_delay = 0
     for dr in sorted(dept_results, key=lambda d: d.order):
         dr.predecessor_delay = cumulative_delay
-        # re-compute parts with new predecessor_delay
         for part in dr.parts:
             part.predecessor_delay_days = cumulative_delay
             part.adjusted_deadline = calculate_shifted_deadline(
