@@ -17,18 +17,18 @@ from modules.core import (
 )
 from modules.visualizations import gantt_chart, efficiency_bar_chart, marks_gauge
 from modules.reporting import generate_report
+from modules.persistence import serialize_projects, deserialize_projects
 from modules.ui_helpers import (
     inject_css, metric_card, dept_header, render_part_inputs, marks_color
 )
 
-# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Adwik WMS", page_icon="⚙️",
                    layout="wide", initial_sidebar_state="expanded")
 inject_css()
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  SESSION STATE BOOTSTRAP
-#  projects: list of {code, start, description, departments, parts_state, results}
 # ─────────────────────────────────────────────────────────────────────────────
 def _new_project(n: int) -> dict:
     return {
@@ -36,16 +36,16 @@ def _new_project(n: int) -> dict:
         "start":       date.today(),
         "description": "",
         "departments": [d.copy() for d in DEFAULT_DEPARTMENTS],
-        # parts_state[dept_name] = list of part dicts
-        "parts_state": {d["name"]: [{"name": f"Part 1"}] for d in DEFAULT_DEPARTMENTS},
-        "results":     {},   # dept_name -> DepartmentResult after analysis
+        "parts_state": {d["name"]: [{"name": "Part 1"}] for d in DEFAULT_DEPARTMENTS},
+        "results":     {},
     }
 
 if "projects" not in st.session_state:
     st.session_state.projects = [_new_project(1)]
-
 if "active_project_idx" not in st.session_state:
     st.session_state.active_project_idx = 0
+if "load_feedback" not in st.session_state:
+    st.session_state.load_feedback = ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -56,19 +56,59 @@ with st.sidebar:
     st.markdown("### Workflow Analytics System")
     st.divider()
 
-    # Project switcher
+    # ── 💾 Save / Load ────────────────────────────────────────────────────────
+    st.markdown("#### 💾 Save & Load Progress")
+
+    # SAVE — always available
+    save_bytes = serialize_projects(st.session_state.projects)
+    st.download_button(
+        label="⬇️  Save Progress (.json)",
+        data=save_bytes,
+        file_name=f"adwik_wms_save_{date.today().isoformat()}.json",
+        mime="application/json",
+        use_container_width=True,
+        help="Downloads your entire workspace as a JSON file. Re-upload it anytime to continue.",
+    )
+
+    # LOAD — file uploader
+    uploaded = st.file_uploader(
+        "↑  Load saved file",
+        type=["json"],
+        key="load_uploader",
+        label_visibility="collapsed",
+        help="Select a previously saved .json file to restore your workspace.",
+    )
+    if uploaded is not None:
+        loaded_projects, feedback = deserialize_projects(uploaded.read())
+        if loaded_projects:
+            st.session_state.projects = loaded_projects
+            st.session_state.active_project_idx = 0
+            st.session_state.load_feedback = f"✅ {feedback}"
+            st.rerun()
+        else:
+            st.session_state.load_feedback = f"❌ {feedback}"
+
+    if st.session_state.load_feedback:
+        if st.session_state.load_feedback.startswith("✅"):
+            st.success(st.session_state.load_feedback, icon=None)
+        else:
+            st.error(st.session_state.load_feedback, icon=None)
+
+    st.divider()
+
+    # ── 📁 Projects ───────────────────────────────────────────────────────────
     st.markdown("#### 📁 Projects")
-    proj_labels = [f"{p['code']}" for p in st.session_state.projects]
+    proj_labels = [p["code"] for p in st.session_state.projects]
     sel_idx = st.selectbox(
         "Active Project", range(len(proj_labels)),
         format_func=lambda i: proj_labels[i],
-        index=st.session_state.active_project_idx,
+        index=min(st.session_state.active_project_idx, len(proj_labels) - 1),
         key="proj_selector",
     )
     st.session_state.active_project_idx = sel_idx
 
     c1, c2 = st.columns(2)
-    if c1.button("➕ New Project", use_container_width=True):
+    if c1.button("➕ New", use_container_width=True):
         n = len(st.session_state.projects) + 1
         st.session_state.projects.append(_new_project(n))
         st.session_state.active_project_idx = len(st.session_state.projects) - 1
@@ -81,41 +121,36 @@ with st.sidebar:
 
     st.divider()
 
-    # Active project settings
+    # ── Active project settings ───────────────────────────────────────────────
     proj = st.session_state.projects[st.session_state.active_project_idx]
     proj["code"]        = st.text_input("Project Code",  value=proj["code"],  key="pc")
     proj["start"]       = st.date_input("Start Date",    value=proj["start"], key="ps")
     proj["description"] = st.text_input("Description",   value=proj.get("description",""), key="pd")
     st.divider()
 
-    # Department editor for active project
+    # ── Department editor ─────────────────────────────────────────────────────
     st.markdown("#### 🏭 Departments")
-    st.caption("Edit name, duration & planned dates per department.")
     depts     = proj["departments"]
     to_delete = None
 
     for i, dept in enumerate(depts):
         with st.expander(f"{dept['name']}  ({dept['duration']} days)", expanded=False):
-            dept["name"]     = st.text_input("Name", value=dept["name"], key=f"dn_{sel_idx}_{i}")
+            dept["name"]     = st.text_input("Name",     value=dept["name"],     key=f"dn_{sel_idx}_{i}")
             dept["duration"] = st.number_input("Duration (days)", 1, 365,
-                                               value=dept["duration"], key=f"dd_{sel_idx}_{i}")
+                                               value=dept["duration"],           key=f"dd_{sel_idx}_{i}")
             dept["planned_start"] = st.date_input(
-                "Planned Start", value=dept.get("planned_start"),
-                key=f"dps_{sel_idx}_{i}", help="Planned start date for this department")
-            dept["planned_end"] = st.date_input(
-                "Planned End", value=dept.get("planned_end"),
-                key=f"dpe_{sel_idx}_{i}", help="Planned end date for this department")
+                "Planned Start", value=dept.get("planned_start"),                key=f"dps_{sel_idx}_{i}")
+            dept["planned_end"]   = st.date_input(
+                "Planned End",   value=dept.get("planned_end"),                  key=f"dpe_{sel_idx}_{i}")
             dept["order"] = i + 1
-
-            if st.button("🗑 Remove Dept", key=f"deldept_{sel_idx}_{i}",
-                         use_container_width=True):
+            if st.button("🗑 Remove", key=f"deldept_{sel_idx}_{i}", use_container_width=True):
                 to_delete = i
 
     if to_delete is not None:
-        removed_name = depts[to_delete]["name"]
+        removed = depts[to_delete]["name"]
         depts.pop(to_delete)
-        proj["parts_state"].pop(removed_name, None)
-        proj["results"].pop(removed_name, None)
+        proj["parts_state"].pop(removed, None)
+        proj["results"].pop(removed, None)
         st.rerun()
 
     if st.button("➕ Add Department", use_container_width=True):
@@ -133,21 +168,21 @@ with st.sidebar:
 
     st.divider()
     run_analysis = st.button("▶  Run Analysis", use_container_width=True)
-    st.caption("Enter data in tabs then click Run Analysis.")
+    st.caption("Save your progress anytime with ⬇️ Save above.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  MAIN AREA — TOP-LEVEL TABS
+#  MAIN TABS
 # ─────────────────────────────────────────────────────────────────────────────
 top_tabs = st.tabs(["📁 All Projects", "🔧 Project Detail", "📊 Analytics", "📥 Report"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 1 — ALL PROJECTS OVERVIEW
+#  TAB 1 — ALL PROJECTS
 # ══════════════════════════════════════════════════════════════════════════════
 with top_tabs[0]:
     st.markdown("## 📁 All Projects")
-    st.caption("Overview of every project. Switch the active project in the sidebar.")
+    st.caption("Overview of every project. Use ⬇️ Save in the sidebar to preserve your work.")
 
     rows = []
     for i, p in enumerate(st.session_state.projects):
@@ -159,57 +194,47 @@ with top_tabs[0]:
         marks_l  = [dr.avg_marks for dr in results] if results else []
         avg_sc   = round(sum(marks_l)/len(marks_l), 1) if marks_l else "—"
         delay    = sum(dr.actual_delay_out for dr in results) if results else 0
-        status   = ("✅ On Track" if delay == 0 and results else
+        status   = ("✅ On Track"     if delay == 0 and results else
                     f"⚠️ {delay}d delay" if results else "🕐 Not Analysed")
         rows.append({
-            "#":            i + 1,
-            "Project Code": p["code"],
-            "Description":  p.get("description", ""),
-            "Start Date":   p["start"].strftime("%d %b %Y"),
-            "Departments":  dept_n,
+            "#":               i + 1,
+            "Project Code":    p["code"],
+            "Description":     p.get("description", ""),
+            "Start Date":      p["start"].strftime("%d %b %Y") if isinstance(p["start"], date) else str(p["start"]),
+            "Departments":     dept_n,
             "Duration (days)": dur,
-            "Parts Tracked": parts_t,
-            "Parts Done":   done_p,
-            "Avg Score":    avg_sc,
-            "Total Delay":  f"{delay}d" if results else "—",
-            "Status":       status,
+            "Parts Tracked":   parts_t,
+            "Parts Done":      done_p,
+            "Avg Score":       avg_sc,
+            "Total Delay":     f"{delay}d" if results else "—",
+            "Status":          status,
         })
 
-    df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    # Quick KPI cards across all projects
-    if any(p["results"] for p in st.session_state.projects):
+    analysed_projs = [p for p in st.session_state.projects if p["results"]]
+    if analysed_projs:
         st.divider()
         st.markdown("### 📊 Portfolio KPIs")
-        all_scores = [
-            dr.avg_marks
-            for p in st.session_state.projects
-            for dr in p["results"].values()
-        ]
-        total_delays = sum(
-            dr.actual_delay_out
-            for p in st.session_state.projects
-            for dr in p["results"].values()
-        )
+        all_scores = [dr.avg_marks for p in analysed_projs for dr in p["results"].values()]
+        total_delay = sum(dr.actual_delay_out for p in analysed_projs for dr in p["results"].values())
         k1, k2, k3, k4 = st.columns(4)
-        with k1: metric_card("Total Projects",    str(len(st.session_state.projects)), "#1ABC9C")
+        with k1: metric_card("Total Projects", str(len(st.session_state.projects)), "#1ABC9C")
         with k2: metric_card("Portfolio Avg Score",
                              f"{sum(all_scores)/len(all_scores):.1f}" if all_scores else "—",
                              marks_color(sum(all_scores)/len(all_scores)) if all_scores else "#aaa")
-        with k3: metric_card("Total Portfolio Delay", f"{total_delays}d",
-                             "#E74C3C" if total_delays else "#27AE60")
+        with k3: metric_card("Total Delay", f"{total_delay}d",
+                             "#E74C3C" if total_delay else "#27AE60")
         with k4:
-            all_done = sum(1 for p in st.session_state.projects
-                           for dr in p["results"].values()
-                           for pt in dr.parts if pt.actual_finish)
+            all_done  = sum(1 for p in analysed_projs for dr in p["results"].values()
+                            for pt in dr.parts if pt.actual_finish)
             all_total = sum(len(v) for p in st.session_state.projects
                             for v in p["parts_state"].values())
-            metric_card("Total Parts Done", f"{all_done} / {all_total}", "#1ABC9C")
+            metric_card("Parts Done", f"{all_done} / {all_total}", "#1ABC9C")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 2 — PROJECT DETAIL (department tabs + part entry)
+#  TAB 2 — PROJECT DETAIL
 # ══════════════════════════════════════════════════════════════════════════════
 with top_tabs[1]:
     proj  = st.session_state.projects[st.session_state.active_project_idx]
@@ -229,7 +254,6 @@ with top_tabs[1]:
         st.warning("No departments. Add one in the sidebar.")
         st.stop()
 
-    # Ensure parts_state has keys for every current department
     for dept in DEPTS:
         if dept["name"] not in proj["parts_state"]:
             proj["parts_state"][dept["name"]] = [{"name": "Part 1"}]
@@ -246,23 +270,18 @@ with top_tabs[1]:
 
             dept_header(dept["name"], dept["duration"])
 
-            # Info bar
             ic = st.columns(5)
             ic[0].info(f"**Original End:** {tl_entry['original_end'].strftime('%d %b %Y')}")
             ic[1].info(f"**Duration:** {dept['duration']} days")
             adj_end = tl_entry["original_end"] + timedelta(days=pred_delay)
             ic[2].info(f"**Adjusted End:** {adj_end.strftime('%d %b %Y')}")
             ic[3].info(f"**Predecessor Shift:** +{pred_delay} days")
-            # Planned dates
-            ps_str = dept.get("planned_start")
-            pe_str = dept.get("planned_end")
-            ic[4].info(
-                f"**Planned:** "
-                f"{ps_str.strftime('%d %b %Y') if ps_str else '—'} → "
-                f"{pe_str.strftime('%d %b %Y') if pe_str else '—'}"
-            )
+            ps = dept.get("planned_start")
+            pe = dept.get("planned_end")
+            ic[4].info(f"**Planned:** "
+                       f"{ps.strftime('%d %b %Y') if ps else '—'} → "
+                       f"{pe.strftime('%d %b %Y') if pe else '—'}")
 
-            # Parts — dynamic add
             parts_state = proj["parts_state"][dept["name"]]
             st.markdown(f"##### Parts ({len(parts_state)})")
 
@@ -276,7 +295,8 @@ with top_tabs[1]:
             )
             dept_part_inputs[dept["name"]] = raw_parts
 
-            if st.button("➕ Add Part", key=f"addpart_{st.session_state.active_project_idx}_{dept['name']}"):
+            if st.button("➕ Add Part",
+                         key=f"addpart_{st.session_state.active_project_idx}_{dept['name']}"):
                 parts_state.append({"name": f"Part {len(parts_state)+1}"})
                 st.rerun()
 
@@ -301,12 +321,12 @@ with top_tabs[1]:
         final = propagate_delays(raw_results)
         for dr in final:
             proj["results"][dr.name] = dr
-        st.toast(f"✅ Analysis complete for {proj['code']}!", icon="📊")
+        st.toast(f"✅ Analysis complete for {proj['code']}! Don't forget to Save.", icon="📊")
         st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 3 — ANALYTICS (active project)
+#  TAB 3 — ANALYTICS
 # ══════════════════════════════════════════════════════════════════════════════
 with top_tabs[2]:
     proj    = st.session_state.projects[st.session_state.active_project_idx]
@@ -319,7 +339,6 @@ with top_tabs[2]:
     else:
         sorted_results = sorted(results, key=lambda r: r.order)
 
-        # Per-dept KPI cards
         st.markdown("### 📈 Department Scores")
         kpi_cols = st.columns(len(sorted_results))
         for col, dr in zip(kpi_cols, sorted_results):
@@ -336,7 +355,7 @@ with top_tabs[2]:
         with k2: metric_card("Total Cascaded Delay", f"{total_delay} days",
                              "#E74C3C" if total_delay else "#27AE60")
         with k3:
-            done = sum(1 for dr in sorted_results for p in dr.parts if p.actual_finish)
+            done    = sum(1 for dr in sorted_results for p in dr.parts if p.actual_finish)
             total_p = sum(len(dr.parts) for dr in sorted_results)
             metric_card("Parts Complete", f"{done} / {total_p}", "#1ABC9C")
 
@@ -350,27 +369,41 @@ with top_tabs[2]:
             with col:
                 st.plotly_chart(marks_gauge(dr.name, dr.avg_marks), use_container_width=True)
 
-        # Planned vs Actual table
+        # Planned vs Actual
         st.markdown("### 📅 Planned vs Actual")
         pva_rows = []
         for dr in sorted_results:
-            ps = dr.planned_start.strftime("%d %b %Y") if dr.planned_start else "—"
-            pe = dr.planned_end.strftime("%d %b %Y")   if dr.planned_end   else "—"
+            ps       = dr.planned_start.strftime("%d %b %Y") if dr.planned_start else "—"
+            pe       = dr.planned_end.strftime("%d %b %Y")   if dr.planned_end   else "—"
             finished = [p for p in dr.parts if p.actual_finish]
             actual_end = (max(p.actual_finish for p in finished).strftime("%d %b %Y")
                           if finished else "Pending")
             pva_rows.append({
-                "Department": dr.name,
-                "Planned Start": ps,
-                "Planned End": pe,
-                "Shifted End": dr.shifted_end.strftime("%d %b %Y"),
-                "Actual End": actual_end,
-                "Delay (days)": dr.actual_delay_out or "—",
-                "Score": round(dr.avg_marks, 1),
+                "Department":          dr.name,
+                "Planned Start":       ps,
+                "Planned End":         pe,
+                "Shifted End":         dr.shifted_end.strftime("%d %b %Y"),
+                "Actual End":          actual_end,
+                "Start Delay (days)":  dr.max_start_delay or "—",
+                "Cascade Delay (days)": dr.actual_delay_out or "✅ 0",
+                "Started Late / On Time": "⚡ Yes" if dr.any_racing else "—",
+                "Score":               round(dr.avg_marks, 1),
             })
         st.dataframe(pd.DataFrame(pva_rows), use_container_width=True, hide_index=True)
 
-        # Delay summary
+        with st.expander("ℹ️  How cascade delay works", expanded=False):
+            st.markdown("""
+| Scenario | Cascade to next dept |
+|---|---|
+| Started on time, finished on time | **0 days** |
+| Started late, finished on time ⚡ | **0 days — no cascade** |
+| Started on time, finished late | **N days cascades** |
+| Started late, finished late | **finish overshoot only cascades** |
+
+Only finish delay propagates. A department that absorbs its own late start
+and still delivers on time has **zero impact** on the next department.
+            """)
+
         delayed = [(dr.name, p) for dr in sorted_results
                    for p in dr.parts if p.actual_finish and p.delay_days > 0]
         if delayed:
@@ -380,32 +413,23 @@ with top_tabs[2]:
                 d_rows.append({
                     "Department": dname, "Part": p.name,
                     "Delay Days": p.delay_days,
-                    "Category":  p.delay_category or "—",
-                    "Type":      "External 🔵" if p.is_external else "Internal 🔴",
-                    "Marks":     round(p.marks, 1),
-                    "Reason":    (p.delay_reason or "—")[:60],
+                    "Category":   p.delay_category or "—",
+                    "Type":       "External 🔵" if p.is_external else "Internal 🔴",
+                    "Marks":      round(p.marks, 1),
+                    "Reason":     (p.delay_reason or "—")[:60],
                 })
             st.dataframe(pd.DataFrame(d_rows), use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 4 — REPORT DOWNLOAD
+#  TAB 4 — REPORT
 # ══════════════════════════════════════════════════════════════════════════════
 with top_tabs[3]:
     st.markdown("## 📥 Download Excel Report")
-
-    # Scope selector
-    scope = st.radio(
-        "Report Scope",
-        ["Active Project Only", "All Projects"],
-        horizontal=True,
-    )
-
-    if scope == "Active Project Only":
-        proj_list = [st.session_state.projects[st.session_state.active_project_idx]]
-    else:
-        proj_list = st.session_state.projects
-
+    scope = st.radio("Report Scope", ["Active Project Only", "All Projects"], horizontal=True)
+    proj_list = ([st.session_state.projects[st.session_state.active_project_idx]]
+                 if scope == "Active Project Only"
+                 else st.session_state.projects)
     analysed = [p for p in proj_list if p["results"]]
 
     if not analysed:
@@ -419,7 +443,6 @@ with top_tabs[3]:
             }
             for p in analysed
         ]
-
         report_bytes = generate_report(all_proj_data)
         fname = (f"Adwik_WMS_{analysed[0]['code']}_{date.today().isoformat()}.xlsx"
                  if len(analysed) == 1
@@ -432,10 +455,8 @@ with top_tabs[3]:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-        st.caption(f"Includes {len(analysed)} project(s) — "
-                   "Sheet 1: All Projects Overview, then Part Detail + Delay Log per project.")
+        st.caption(f"{len(analysed)} project(s) — Sheet 1: Overview, then Parts + Delays per project.")
 
-        # Preview
         st.markdown("#### Preview")
         prev_rows = []
         for p in analysed:
@@ -447,6 +468,7 @@ with top_tabs[3]:
                         "Part":          pt.name,
                         "Planned Start": pt.planned_start.strftime("%d %b %Y") if pt.planned_start else "—",
                         "Planned End":   pt.planned_end.strftime("%d %b %Y")   if pt.planned_end   else "—",
+                        "Actual Start":  pt.actual_start.strftime("%d %b %Y")  if getattr(pt, "actual_start", None) else "—",
                         "Adj. Deadline": pt.adjusted_deadline.strftime("%d %b %Y"),
                         "Actual Finish": pt.actual_finish.strftime("%d %b %Y") if pt.actual_finish else "Pending",
                         "Delay Days":    pt.delay_days if pt.actual_finish else "—",
