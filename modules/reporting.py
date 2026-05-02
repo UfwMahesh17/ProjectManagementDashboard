@@ -176,23 +176,26 @@ def _build_detail(ws, project_code, dept_results):
                 dr.name, part.name,
                 part.planned_start.strftime("%d %b %Y") if part.planned_start else "—",
                 part.planned_end.strftime("%d %b %Y")   if part.planned_end   else "—",
+                getattr(part, "actual_start", None) and part.actual_start.strftime("%d %b %Y") or "—",
+                part.start_delay_days if part.start_delay_days else "—",
                 part.original_deadline.strftime("%d %b %Y"),
                 part.predecessor_delay_days,
                 part.adjusted_deadline.strftime("%d %b %Y"),
                 part.actual_finish.strftime("%d %b %Y") if part.actual_finish else "Pending",
                 part.delay_days  if part.actual_finish else "—",
                 round(part.marks, 1) if part.actual_finish else "—",
+                "⚡ Yes" if part.racing_to_finish else "—",
             ]
             for col, val in zip(cols, row_data):
                 ws[f"{col}{row_num}"] = val
             _data(ws, row_num, cols, bg)
             if part.actual_finish:
-                ws[f"J{row_num}"].fill = PatternFill(
+                ws[f"L{row_num}"].fill = PatternFill(
                     "solid", start_color=_cell_color(part.marks)
                 )
             row_num += 1
 
-    widths = [16, 20, 14, 14, 16, 14, 16, 14, 10, 10]
+    widths = [16, 20, 14, 14, 14, 12, 16, 14, 16, 14, 12, 10, 18]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
 
