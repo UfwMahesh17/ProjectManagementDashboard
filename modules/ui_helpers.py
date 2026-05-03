@@ -30,6 +30,15 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 { color: #FFFFFF !important; }
+
+/* Fix overlapping upload text */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section > div {
+    padding: 0.5rem !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section > label {
+    display: none !important;
+}
+
 [data-testid="stSidebar"] .stTextInput input,
 [data-testid="stSidebar"] .stNumberInput input,
 [data-testid="stSidebar"] .stDateInput input {
@@ -201,7 +210,12 @@ div[data-testid="stExpander"] {
     margin: 0 0 6px !important;
     line-height: 1.2 !important;
 }
-.wms-hero-sub { color: rgba(255,255,255,0.6) !important; font-size: 0.88rem !important; margin: 0 !important; }
+.wms-hero-sub { 
+    color: rgba(255,255,255,0.7) !important; 
+    font-size: 0.95rem !important; 
+    margin: 0 !important; 
+    line-height: 1.4 !important;
+}
 .wms-hero-accent { color: #F59E0B !important; }
 
 .wms-kpi-row { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -334,7 +348,6 @@ div[data-testid="stExpander"] {
     padding: 20px 22px;
     transition: all 0.2s;
     height: 100%;
-    color: #1C1C1E;
 }
 .wms-proj-card:hover { border-color: #F59E0B; box-shadow: 0 8px 30px rgba(28,37,54,0.08); transform: translateY(-2px); }
 
@@ -432,8 +445,7 @@ def hero(title: str, subtitle: str, accent: str = ""):
     st.markdown(
         f"""<div class="wms-hero">
           <div class="wms-hero-title">{title}
-            {"<span class='wms-hero-accent'> " + accent + "</span>" if accent else ""}
-          </div>
+            {"<span class='wms-hero-accent'> " + accent + "</span>" if accent else ""}</div>
           <p class="wms-hero-sub">{subtitle}</p>
         </div>""",
         unsafe_allow_html=True,
