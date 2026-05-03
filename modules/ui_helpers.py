@@ -39,9 +39,21 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     padding: 0 !important;
     border: none !important;
     background: transparent !important;
+    min-height: unset !important;
 }
 [data-testid="stSidebar"] [data-testid="stFileUploader"] section > div {
     display: none !important;
+}
+/* Hide the 'Drag and drop file here' text and 'Limit 200MB' bits that cause overlap */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] {
+    display: none !important;
+}
+/* Style the browse button specifically for sidebar */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
+    width: 100% !important;
+    background: #273043 !important;
+    color: #E8ECF4 !important;
+    border: 1px solid #374357 !important;
 }
 
 [data-testid="stSidebar"] .stTextInput input,
@@ -493,14 +505,13 @@ def dept_header(name: str, duration: int, completion_pct: float = 0, pred_delay:
              "Assembly": "🔧", "Testing": "🧪"}
     icon = icons.get(name, "📦")
     bar_color = "#10B981" if completion_pct == 100 else "#F59E0B" if completion_pct > 0 else "#D1D5DB"
-    delay_txt = f'<span class="badge badge-amber" style="font-size:0.68rem">+{pred_delay}d shift</span>' if pred_delay else ""
+    # Delay badge is disabled for department headers as we are in manual mode
     st.markdown(
         f"""<div class="wms-dept-banner">
           <div class="wms-dept-icon">{icon}</div>
           <div style="flex:1">
             <div style="display:flex;align-items:center;gap:8px">
               <span class="wms-dept-name">{name}</span>
-              {delay_txt}
             </div>
             <div class="wms-dept-meta">{duration} days &nbsp;·&nbsp; {completion_pct:.0f}% complete</div>
             <div class="wms-dept-prog-wrap">
@@ -604,7 +615,8 @@ def render_part_inputs(
     dept_name, dept_duration, dept_original_end,
     predecessor_delay, parts_state, key_prefix,
 ):
-    adj_deadline = calculate_shifted_deadline(dept_original_end, predecessor_delay)
+    # DEADLINE CASCADE DISABLED: adj_deadline is always the original_end
+    adj_deadline = dept_original_end
     parts_out    = []
     to_delete    = None
 
@@ -652,7 +664,8 @@ def render_part_inputs(
         delay_reason = part.get("delay_reason")
 
         if p_start:
-            adj_ps = p_start + timedelta(days=predecessor_delay)
+            # DEADLINE CASCADE DISABLED: Use p_start directly
+            adj_ps = p_start
             if actual_start and actual_start > adj_ps:
                 lag       = (actual_start - adj_ps).days
                 days_left = (adj_deadline - actual_start).days
@@ -663,23 +676,20 @@ def render_part_inputs(
                             f'<div class="wms-warn-box">⏰ <strong>{part_name}</strong> started '
                             f'<strong>{lag} day(s) late</strong>. '
                             f'You have <strong>{days_left} days</strong> remaining to finish by '
-                            f'<strong>{adj_deadline.strftime("%d %b %Y")}</strong> '
-                            f'without cascading delay to the next department.</div>',
+                            f'<strong>{adj_deadline.strftime("%d %b %Y")}</strong>.</div>',
                             unsafe_allow_html=True,
                         )
                     else:
                         st.markdown(
                             f'<div class="wms-error-box">🚨 <strong>{part_name}</strong> started '
-                            f'<strong>{lag} day(s) late</strong> — the buffer is already exceeded by '
-                            f'<strong>{abs(days_left)} day(s)</strong>. A finish delay will cascade '
-                            f'to the next department.</div>',
+                            f'<strong>{lag} day(s) late</strong> — the target completion date is already exceeded by '
+                            f'<strong>{abs(days_left)} day(s)</strong>.</div>',
                             unsafe_allow_html=True,
                         )
                 elif actual_finish <= adj_deadline:
                     st.markdown(
                         f'<div class="wms-success-box">⚡ <strong>{part_name}</strong> started '
-                        f'<strong>{lag} day(s) late</strong> but recovered and finished on time. '
-                        f'<strong>Zero cascade delay</strong> to the next department.</div>',
+                        f'<strong>{lag} day(s) late</strong> but recovered and finished on time.</div>',
                         unsafe_allow_html=True,
                     )
 
@@ -689,7 +699,7 @@ def render_part_inputs(
             penalty = overdue * 5
             st.markdown(
                 f'<div class="wms-error-box">⚠️ <strong>{part_name}</strong> is '
-                f'<strong>{overdue} day(s) late</strong> past the adjusted deadline '
+                f'<strong>{overdue} day(s) late</strong> past the target deadline '
                 f'({adj_deadline.strftime("%d %b %Y")}). Please log the delay below.</div>',
                 unsafe_allow_html=True,
             )
