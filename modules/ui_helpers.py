@@ -8,7 +8,7 @@ from datetime import date, timedelta
 import streamlit as st
 from modules.core import DELAY_CATEGORIES, EXTERNAL_CATEGORIES, calculate_shifted_deadline
 
-MAIN_CSS = """
+MAIN_CSS = 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Sora:wght@700;800&display=swap');
 
@@ -417,7 +417,7 @@ div[data-testid="stExpander"] {
 h1, h2, h3 { font-family: 'Sora', sans-serif !important; color: #1C1C1E !important; }
 p, span, div, label { font-family: 'DM Sans', sans-serif !important; }
 </style>
-"""
+
 
 
 def inject_css():
