@@ -30,6 +30,20 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 { color: #FFFFFF !important; }
+
+/* FIX SIDEBAR UPLOADER MESS */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] > label {
+    display: none !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section > div {
+    display: none !important;
+}
+
 [data-testid="stSidebar"] .stTextInput input,
 [data-testid="stSidebar"] .stNumberInput input,
 [data-testid="stSidebar"] .stDateInput input {
@@ -175,6 +189,7 @@ div[data-testid="stExpander"] {
     margin-bottom: 24px;
     position: relative;
     overflow: hidden;
+    color: white;
 }
 .wms-hero::before {
     content: '';
@@ -200,7 +215,12 @@ div[data-testid="stExpander"] {
     margin: 0 0 6px !important;
     line-height: 1.2 !important;
 }
-.wms-hero-sub { color: rgba(255,255,255,0.6) !important; font-size: 0.88rem !important; margin: 0 !important; }
+.wms-hero-sub { 
+    color: rgba(255,255,255,0.7) !important; 
+    font-size: 0.95rem !important; 
+    margin: 0 !important; 
+    line-height: 1.4 !important;
+}
 .wms-hero-accent { color: #F59E0B !important; }
 
 .wms-kpi-row { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -427,43 +447,41 @@ def inject_css():
 # ── Reusable HTML helpers ─────────────────────────────────────────────────────
 
 def hero(title: str, subtitle: str, accent: str = ""):
-    accent_html = f"<span class='wms-hero-accent'> {accent}</span>" if accent else ""
-    html = (
-        f'<div class="wms-hero">'
-        f'<div class="wms-hero-title">{title}{accent_html}</div>'
-        f'<p class="wms-hero-sub">{subtitle}</p>'
-        f'</div>'
+    subtitle_html = f'<p class="wms-hero-sub">{subtitle}</p>'
+    title_html = f'<div class="wms-hero-title">{title}'
+    if accent:
+        title_html += f' <span class="wms-hero-accent">{accent}</span>'
+    title_html += '</div>'
+    
+    st.markdown(
+        f'<div class="wms-hero">{title_html}{subtitle_html}</div>',
+        unsafe_allow_html=True,
     )
-    st.markdown(html, unsafe_allow_html=True)
 
 
 def kpi_row(items: list[tuple]):
     """items = [(label, value, sub, color), ...]"""
     cards = ""
     for label, value, sub, color in items:
-        sub_html = f'<div class="wms-kpi-sub">{sub}</div>' if sub else ""
-        cards += (
-            f'<div class="wms-kpi">'
-            f'<div class="wms-kpi-accent" style="background:{color}"></div>'
-            f'<div class="wms-kpi-label">{label}</div>'
-            f'<div class="wms-kpi-value" style="color:{color}">{value}</div>'
-            f'{sub_html}'
-            f'</div>'
-        )
+        cards += f"""<div class="wms-kpi">
+          <div class="wms-kpi-accent" style="background:{color}"></div>
+          <div class="wms-kpi-label">{label}</div>
+          <div class="wms-kpi-value" style="color:{color}">{value}</div>
+          {"<div class='wms-kpi-sub'>" + sub + "</div>" if sub else ""}
+        </div>"""
     st.markdown(f'<div class="wms-kpi-row">{cards}</div>', unsafe_allow_html=True)
 
 
 def kpi_card(label, value, sub="", color="#1C2536"):
-    sub_html = f'<div class="wms-kpi-sub">{sub}</div>' if sub else ""
-    html = (
-        f'<div class="wms-kpi">'
-        f'<div class="wms-kpi-accent" style="background:{color}"></div>'
-        f'<div class="wms-kpi-label">{label}</div>'
-        f'<div class="wms-kpi-value" style="color:{color}">{value}</div>'
-        f'{sub_html}'
-        f'</div>'
+    st.markdown(
+        f"""<div class="wms-kpi">
+          <div class="wms-kpi-accent" style="background:{color}"></div>
+          <div class="wms-kpi-label">{label}</div>
+          <div class="wms-kpi-value" style="color:{color}">{value}</div>
+          {"<div class='wms-kpi-sub'>" + sub + "</div>" if sub else ""}
+        </div>""",
+        unsafe_allow_html=True,
     )
-    st.markdown(html, unsafe_allow_html=True)
 
 
 def metric_card(label, value, color="#1C2536"):
@@ -475,10 +493,7 @@ def dept_header(name: str, duration: int, completion_pct: float = 0, pred_delay:
              "Assembly": "🔧", "Testing": "🧪"}
     icon = icons.get(name, "📦")
     bar_color = "#10B981" if completion_pct == 100 else "#F59E0B" if completion_pct > 0 else "#D1D5DB"
-    if pred_delay:
-        delay_txt = f'<span class="badge badge-amber" style="font-size:0.68rem">+{pred_delay}d shift</span>'
-    else:
-        delay_txt = ""
+    delay_txt = f'<span class="badge badge-amber" style="font-size:0.68rem">+{pred_delay}d shift</span>' if pred_delay else ""
     st.markdown(
         f"""<div class="wms-dept-banner">
           <div class="wms-dept-icon">{icon}</div>
