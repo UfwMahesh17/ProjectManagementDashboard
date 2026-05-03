@@ -87,6 +87,7 @@ class PartEntry:
         
         # ── Start-delay analysis ──────────────────────────────────────────────
         adj_start = self.planned_start  # Use planned start directly
+        if self.actual_start and adj_start:
             self.start_delay_days = max(0, (self.actual_start - adj_start).days)
         else:
             self.start_delay_days = 0
