@@ -16,15 +16,15 @@ from modules.visualizations import gantt_chart, efficiency_bar_chart, marks_gaug
 from modules.reporting import generate_report
 from modules.persistence import serialize_projects, deserialize_projects
 from modules.ui_helpers import (
-    inject_css, metric_card, kpi_card, dept_header, render_part_inputs,
-    marks_color, page_hero, info_pills, section_heading, step_indicator,
-    progress_bar, completion_ring_html, badge,
+    inject_css, hero, kpi_row, kpi_card, metric_card,
+    dept_header, render_part_inputs, marks_color,
+    page_hero, pill_row, info_pills, section_label, section_heading,
+    step_indicator, progress_bar, completion_ring_html,
 )
 
 st.set_page_config(
     page_title="Adwik Intellimech WMS",
-    page_icon="⚙️",
-    layout="wide",
+    page_icon="⚙️", layout="wide",
     initial_sidebar_state="expanded",
 )
 inject_css()
@@ -41,34 +41,26 @@ def _new_project(n: int) -> dict:
         "results":     {},
     }
 
-for key, val in [
-    ("projects",           [_new_project(1)]),
-    ("active_project_idx", 0),
-    ("load_feedback",      ""),
-]:
-    if key not in st.session_state:
-        st.session_state[key] = val
+for k, v in [("projects", [_new_project(1)]), ("active_project_idx", 0), ("load_feedback", "")]:
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
+    # Brand
     st.markdown(
-        "<div style='padding:16px 0 8px'>"
-        "<span style='font-size:1.3rem;font-weight:700;color:#1A1F36'>⚙️ Adwik WMS</span><br>"
-        "<span style='font-size:0.78rem;color:#718096'>Workflow Analytics System</span>"
-        "</div>",
+        '<div class="sb-brand">'
+        '<div class="sb-brand-name">⚙️ Adwik WMS</div>'
+        '<div class="sb-brand-sub">Workflow Analytics System</div>'
+        '</div>',
         unsafe_allow_html=True,
     )
-    st.divider()
 
-    # ── 💾 Save / Load ────────────────────────────────────────────────────────
-    st.markdown(
-        "<div style='font-size:0.72rem;font-weight:700;text-transform:uppercase;"
-        "letter-spacing:0.7px;color:#718096;margin-bottom:8px'>💾 Save & Load</div>",
-        unsafe_allow_html=True,
-    )
+    # ── Save / Load ───────────────────────────────────────────────────────────
+    st.markdown('<div class="sb-section-label">💾 Save & Load</div>', unsafe_allow_html=True)
     save_bytes = serialize_projects(st.session_state.projects)
     st.download_button(
         "⬇️  Save progress (.json)",
@@ -76,11 +68,12 @@ with st.sidebar:
         file_name=f"adwik_wms_{date.today().isoformat()}.json",
         mime="application/json",
         use_container_width=True,
-        help="Saves your entire workspace. Re-upload anytime to restore.",
+        help="Downloads your workspace as JSON. Re-upload to restore anytime.",
     )
     uploaded = st.file_uploader(
-        "Load saved file", type=["json"],
-        key="load_uploader", label_visibility="collapsed",
+        "Load", type=["json"], key="load_uploader",
+        label_visibility="collapsed",
+        help="Select a previously saved .json file",
     )
     if uploaded:
         loaded, feedback = deserialize_projects(uploaded.read())
@@ -97,21 +90,16 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Projects ──────────────────────────────────────────────────────────────
-    st.markdown(
-        "<div style='font-size:0.72rem;font-weight:700;text-transform:uppercase;"
-        "letter-spacing:0.7px;color:#718096;margin-bottom:8px'>📁 Projects</div>",
-        unsafe_allow_html=True,
-    )
+    # ── Project switcher ──────────────────────────────────────────────────────
+    st.markdown('<div class="sb-section-label">📁 Projects</div>', unsafe_allow_html=True)
     proj_labels = [p["code"] for p in st.session_state.projects]
     sel_idx = st.selectbox(
-        "Active project", range(len(proj_labels)),
+        "Project", range(len(proj_labels)),
         format_func=lambda i: proj_labels[i],
         index=min(st.session_state.active_project_idx, len(proj_labels)-1),
         label_visibility="collapsed",
     )
     st.session_state.active_project_idx = sel_idx
-
     c1, c2 = st.columns(2)
     if c1.button("➕ New", use_container_width=True):
         n = len(st.session_state.projects) + 1
@@ -126,55 +114,41 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Active project settings ───────────────────────────────────────────────
+    # ── Project settings ──────────────────────────────────────────────────────
     proj = st.session_state.projects[st.session_state.active_project_idx]
-    st.markdown(
-        "<div style='font-size:0.72rem;font-weight:700;text-transform:uppercase;"
-        "letter-spacing:0.7px;color:#718096;margin-bottom:8px'>⚙️ Project Settings</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="sb-section-label">⚙️ Project Settings</div>', unsafe_allow_html=True)
     proj["code"]        = st.text_input("Project Code",  value=proj["code"],  key="pc")
     proj["start"]       = st.date_input("Start Date",    value=proj["start"], key="ps")
     proj["description"] = st.text_input("Description",   value=proj.get("description",""), key="pd",
                                          placeholder="e.g. Hydraulic Press Build")
+
     st.divider()
 
-    # ── Department editor ─────────────────────────────────────────────────────
-    st.markdown(
-        "<div style='font-size:0.72rem;font-weight:700;text-transform:uppercase;"
-        "letter-spacing:0.7px;color:#718096;margin-bottom:8px'>🏭 Departments</div>",
-        unsafe_allow_html=True,
-    )
-    depts     = proj["departments"]
+    # ── Departments ───────────────────────────────────────────────────────────
+    st.markdown('<div class="sb-section-label">🏭 Departments</div>', unsafe_allow_html=True)
+    depts = proj["departments"]
     to_delete = None
 
     for i, dept in enumerate(depts):
-        done_parts  = sum(1 for p in proj["parts_state"].get(dept["name"], [])
-                          if p.get("actual_finish"))
-        total_parts = len(proj["parts_state"].get(dept["name"], []))
-        pct         = int(done_parts / total_parts * 100) if total_parts else 0
-        color       = "#059669" if pct == 100 else "#3B5BDB" if pct > 0 else "#A0AEC0"
+        done_p  = sum(1 for p in proj["parts_state"].get(dept["name"], []) if p.get("actual_finish"))
+        total_p = len(proj["parts_state"].get(dept["name"], []))
+        pct     = int(done_p / total_p * 100) if total_p else 0
+        col     = "#10B981" if pct == 100 else "#F59E0B" if pct > 0 else "#6B7A99"
 
-        with st.expander(f"{dept['name']} — {done_parts}/{total_parts} parts done", expanded=False):
+        with st.expander(f"{dept['name']}  ·  {done_p}/{total_p} done", expanded=False):
+            # Mini progress bar inside expander
             st.markdown(
-                f'<div style="margin-bottom:8px">'
-                f'<div style="font-size:0.72rem;color:#718096;margin-bottom:3px">'
-                f'Completion</div>'
-                f'<div style="background:#E5E9F2;border-radius:99px;height:6px;overflow:hidden">'
-                f'<div style="width:{pct}%;height:100%;background:{color};border-radius:99px">'
-                f'</div></div></div>',
+                f'<div style="height:4px;background:#374357;border-radius:99px;overflow:hidden;margin-bottom:10px">'
+                f'<div style="width:{pct}%;height:100%;background:{col};border-radius:99px"></div>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
-            dept["name"]     = st.text_input("Name",     value=dept["name"],     key=f"dn_{sel_idx}_{i}")
-            dept["duration"] = st.number_input("Duration (days)", 1, 365,
-                                               value=dept["duration"],           key=f"dd_{sel_idx}_{i}")
-            dept["planned_start"] = st.date_input("Planned Start",
-                value=dept.get("planned_start"), key=f"dps_{sel_idx}_{i}")
-            dept["planned_end"]   = st.date_input("Planned End",
-                value=dept.get("planned_end"),   key=f"dpe_{sel_idx}_{i}")
+            dept["name"]     = st.text_input("Name",            value=dept["name"],     key=f"dn_{sel_idx}_{i}")
+            dept["duration"] = st.number_input("Duration (days)", 1, 365, value=dept["duration"], key=f"dd_{sel_idx}_{i}")
+            dept["planned_start"] = st.date_input("Planned Start", value=dept.get("planned_start"), key=f"dps_{sel_idx}_{i}")
+            dept["planned_end"]   = st.date_input("Planned End",   value=dept.get("planned_end"),   key=f"dpe_{sel_idx}_{i}")
             dept["order"] = i + 1
-            if st.button("Remove department", key=f"deldept_{sel_idx}_{i}",
-                         use_container_width=True):
+            if st.button("Remove this department", key=f"deldept_{sel_idx}_{i}", use_container_width=True):
                 to_delete = i
 
     if to_delete is not None:
@@ -184,14 +158,14 @@ with st.sidebar:
         proj["results"].pop(removed, None)
         st.rerun()
 
-    col_a, col_b = st.columns(2)
-    if col_a.button("➕ Add Dept", use_container_width=True):
+    ca, cb = st.columns(2)
+    if ca.button("➕ Add", use_container_width=True):
         nm = f"Dept {len(depts)+1}"
         depts.append({"name": nm, "duration": 30, "order": len(depts)+1,
                       "planned_start": None, "planned_end": None})
         proj["parts_state"][nm] = [{"name": "Part 1"}]
         st.rerun()
-    if col_b.button("↩ Reset", use_container_width=True):
+    if cb.button("↩ Reset", use_container_width=True):
         proj["departments"] = [d.copy() for d in DEFAULT_DEPARTMENTS]
         proj["parts_state"] = {d["name"]: [{"name": "Part 1"}] for d in DEFAULT_DEPARTMENTS}
         proj["results"] = {}
@@ -199,7 +173,11 @@ with st.sidebar:
 
     st.divider()
     run_analysis = st.button("▶  Run Analysis", use_container_width=True)
-    st.caption("💡 Save your progress anytime using ⬇️ above.")
+    st.markdown(
+        '<div style="font-size:0.7rem;color:#6B7A99;text-align:center;margin-top:6px">'
+        'Enter all part dates first, then run.</div>',
+        unsafe_allow_html=True,
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -207,9 +185,9 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 tab_all, tab_detail, tab_analytics, tab_report = st.tabs([
     "📁  All Projects",
-    "🔧  Project Detail",
+    "🔧  Enter Data",
     "📊  Analytics",
-    "📥  Report",
+    "📥  Download Report",
 ])
 
 
@@ -217,95 +195,91 @@ tab_all, tab_detail, tab_analytics, tab_report = st.tabs([
 #  TAB 1 — ALL PROJECTS
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_all:
-    # Hero
-    st.markdown(
-        "<div class='page-hero'>"
-        "<h1>📁 All Projects</h1>"
-        "<p>Your complete project portfolio at a glance. "
-        "Select a project in the sidebar to edit it.</p>"
-        "</div>",
-        unsafe_allow_html=True,
+    hero(
+        "Project Portfolio",
+        "All projects at a glance. Select a project in the sidebar to work on it.",
     )
 
-    # Portfolio KPI strip
+    # Portfolio KPIs (only if any analysis done)
     all_results = [dr for p in st.session_state.projects for dr in p["results"].values()]
     if all_results:
-        all_scores   = [dr.avg_marks for dr in all_results]
-        total_delay  = sum(dr.actual_delay_out for dr in all_results)
-        all_done     = sum(1 for dr in all_results for pt in dr.parts if pt.actual_finish)
-        all_total    = sum(len(v) for p in st.session_state.projects for v in p["parts_state"].values())
-        portfolio_sc = sum(all_scores) / len(all_scores)
+        all_scores  = [dr.avg_marks for dr in all_results]
+        total_delay = sum(dr.actual_delay_out for dr in all_results)
+        all_done    = sum(1 for dr in all_results for pt in dr.parts if pt.actual_finish)
+        all_total   = sum(len(v) for p in st.session_state.projects for v in p["parts_state"].values())
+        port_sc     = sum(all_scores) / len(all_scores)
+        kpi_row([
+            ("Total Projects",   str(len(st.session_state.projects)), "",               "#1C2536"),
+            ("Portfolio Score",  f"{port_sc:.0f}",  "out of 100",                      marks_color(port_sc)),
+            ("Total Delay",      f"{total_delay}d", "finish delay accumulated",         "#EF4444" if total_delay else "#10B981"),
+            ("Parts Completed",  f"{all_done}/{all_total}", f"{all_done/all_total*100:.0f}% done", "#F59E0B"),
+        ])
 
-        k1, k2, k3, k4 = st.columns(4)
-        with k1: kpi_card("Total Projects",    str(len(st.session_state.projects)), color="#3B5BDB")
-        with k2: kpi_card("Portfolio Score",   f"{portfolio_sc:.0f}",
-                           sub="out of 100", color=marks_color(portfolio_sc))
-        with k3: kpi_card("Total Delay",       f"{total_delay}d",
-                           color="#DC2626" if total_delay else "#059669")
-        with k4: kpi_card("Parts Completed",   f"{all_done}/{all_total}", color="#3B5BDB")
-        st.markdown("<div style='margin-bottom:16px'></div>", unsafe_allow_html=True)
+    # Project cards
+    section_label("Projects")
+    num_projs = len(st.session_state.projects)
+    cols = st.columns(min(num_projs, 3))
 
-    # Project cards grid
-    cols = st.columns(min(len(st.session_state.projects), 3))
     for i, p in enumerate(st.session_state.projects):
-        results     = list(p["results"].values())
-        done_parts  = sum(1 for dr in results for pt in dr.parts if pt.actual_finish)
-        total_parts = sum(len(v) for v in p["parts_state"].values())
-        pct         = int(done_parts / total_parts * 100) if total_parts else 0
-        marks_l     = [dr.avg_marks for dr in results]
-        avg_sc      = round(sum(marks_l)/len(marks_l), 1) if marks_l else None
-        delay       = sum(dr.actual_delay_out for dr in results) if results else 0
-        sc_color    = marks_color(avg_sc) if avg_sc else "#A0AEC0"
-        status      = "✅ On Track" if results and delay == 0 else (
-                      f"⚠️ {delay}d delay" if results else "⏳ Not analysed")
-        ring        = completion_ring_html(pct, sc_color)
+        results    = list(p["results"].values())
+        done_p     = sum(1 for dr in results for pt in dr.parts if pt.actual_finish)
+        total_p    = sum(len(v) for v in p["parts_state"].values())
+        pct        = int(done_p / total_p * 100) if total_p else 0
+        marks_l    = [dr.avg_marks for dr in results]
+        avg_sc     = round(sum(marks_l)/len(marks_l), 1) if marks_l else None
+        delay      = sum(dr.actual_delay_out for dr in results) if results else 0
+        sc_color   = marks_color(avg_sc) if avg_sc else "#9CA3AF"
+        ring       = completion_ring_html(pct, sc_color, 64)
+
+        status_cls = "green" if results and delay==0 else "red" if delay else "blue"
+        status_txt = "✓ On Track" if results and delay==0 else (f"⚠ {delay}d delay" if results else "Not analysed")
 
         with cols[i % 3]:
             st.markdown(
-                f"""<div class="wms-card" style="cursor:pointer">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                    <div>
-                      <div style="font-size:1rem;font-weight:700;color:#1A1F36">{p['code']}</div>
-                      <div style="font-size:0.78rem;color:#718096;margin-top:2px">
-                        {p.get('description','') or 'No description'}</div>
-                      <div style="font-size:0.75rem;color:#A0AEC0;margin-top:4px">
-                        Started {p['start'].strftime('%d %b %Y') if isinstance(p['start'],date) else p['start']}
+                f"""<div class="wms-proj-card">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                    <div style="flex:1">
+                      <div style="font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;color:#1C1C1E">{p['code']}</div>
+                      <div style="font-size:0.78rem;color:#6B7280;margin-top:2px">{p.get('description') or 'No description'}</div>
+                      <div style="font-size:0.72rem;color:#9CA3AF;margin-top:4px">
+                        📅 {p['start'].strftime('%d %b %Y') if isinstance(p['start'],date) else p['start']}
                       </div>
                     </div>
-                    {ring}
+                    <div style="flex-shrink:0">{ring}</div>
                   </div>
-                  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-                    <span class="badge badge-{'green' if results and delay==0 else 'red' if delay else 'blue'}">{status}</span>
-                    <span class="badge badge-purple">{len(p['departments'])} depts</span>
-                    {'<span class="badge badge-blue">Score: '+str(avg_sc)+'</span>' if avg_sc else ''}
+                  <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                    <span class="badge badge-{status_cls}">{status_txt}</span>
+                    <span class="badge badge-slate">{len(p['departments'])} depts</span>
+                    <span class="badge badge-slate">{total_p} parts</span>
+                    {"<span class='badge badge-purple'>Score: "+str(avg_sc)+"</span>" if avg_sc else ""}
                   </div>
                 </div>""",
                 unsafe_allow_html=True,
             )
 
     # Summary table
-    section_heading("Detailed Summary")
+    section_label("Full Summary")
     rows = []
-    for i, p in enumerate(st.session_state.projects):
+    for p in st.session_state.projects:
         results = list(p["results"].values())
         marks_l = [dr.avg_marks for dr in results]
         delay   = sum(dr.actual_delay_out for dr in results) if results else 0
         rows.append({
-            "Code":       p["code"],
-            "Description": p.get("description","—"),
-            "Start":      p["start"].strftime("%d %b %Y") if isinstance(p["start"],date) else str(p["start"]),
-            "Depts":      len(p["departments"]),
-            "Duration":   f"{sum(d['duration'] for d in p['departments'])}d",
-            "Parts":      sum(len(v) for v in p["parts_state"].values()),
-            "Avg Score":  round(sum(marks_l)/len(marks_l),1) if marks_l else "—",
-            "Delay":      f"{delay}d" if results else "—",
-            "Status":     "On Track" if results and delay==0 else (f"{delay}d delay" if results else "Not analysed"),
+            "Code":            p["code"],
+            "Description":     p.get("description","—"),
+            "Start":           p["start"].strftime("%d %b %Y") if isinstance(p["start"],date) else str(p["start"]),
+            "Departments":     len(p["departments"]),
+            "Total Duration":  f"{sum(d['duration'] for d in p['departments'])}d",
+            "Parts":           sum(len(v) for v in p["parts_state"].values()),
+            "Avg Score":       round(sum(marks_l)/len(marks_l),1) if marks_l else "—",
+            "Total Delay":     f"{delay}d" if results else "—",
+            "Status":          "On Track" if results and delay==0 else (f"{delay}d delay" if results else "Not analysed"),
         })
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  TAB 2 — PROJECT DETAIL
+#  TAB 2 — ENTER DATA
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_detail:
     proj  = st.session_state.projects[st.session_state.active_project_idx]
@@ -319,32 +293,40 @@ with tab_detail:
         if dept["name"] not in proj["parts_state"]:
             proj["parts_state"][dept["name"]] = [{"name": "Part 1"}]
 
-    # Hero with overall progress
     total_parts = sum(len(v) for v in proj["parts_state"].values())
-    done_parts  = sum(1 for dr in proj["results"].values()
-                      for pt in dr.parts if pt.actual_finish)
+    done_parts  = sum(1 for dr in proj["results"].values() for pt in dr.parts if pt.actual_finish)
     overall_pct = int(done_parts / total_parts * 100) if total_parts else 0
+
     page_hero(proj["code"], proj["start"], len(DEPTS), sum(d["duration"] for d in DEPTS))
 
-    # Step indicator showing which departments have been completed
-    dept_names = [d["name"] for d in DEPTS]
+    # Step indicator
+    dept_names      = [d["name"] for d in DEPTS]
     completed_depts = sum(
         1 for d in DEPTS
-        if all(p.get("actual_finish") for p in proj["parts_state"].get(d["name"], []))
-        and proj["parts_state"].get(d["name"])
+        if proj["parts_state"].get(d["name"])
+        and all(p.get("actual_finish") for p in proj["parts_state"].get(d["name"], []))
     )
     step_indicator(dept_names, completed_depts)
 
-    # Overall project progress bar
-    info_pills([
-        ("Overall Progress", f"{overall_pct}%"),
-        ("Parts Done", f"{done_parts}/{total_parts}"),
+    # Summary pills
+    pill_row([
+        ("Progress", f"{overall_pct}%"),
+        ("Parts done", f"{done_parts}/{total_parts}"),
         ("Departments", str(len(DEPTS))),
-        ("Analysis", "✅ Ready" if proj["results"] else "⏳ Pending"),
+        ("Analysis", "✅ Complete" if proj["results"] else "⏳ Pending — click Run Analysis"),
     ])
 
-    timeline = build_department_timeline(proj["start"], DEPTS)
-    dept_tabs_ui = st.tabs([f"{d['name']}" for d in DEPTS])
+    # Tip box if no analysis yet
+    if not proj["results"]:
+        st.markdown(
+            '<div class="wms-info-box">💡 <strong>How to use:</strong> '
+            'Fill in the planned and actual dates for each part below, '
+            'then click <strong>▶ Run Analysis</strong> in the sidebar to see scores and cascaded delays.</div>',
+            unsafe_allow_html=True,
+        )
+
+    timeline        = build_department_timeline(proj["start"], DEPTS)
+    dept_tabs_ui    = st.tabs([f"{d['name']}" for d in DEPTS])
     dept_part_inputs: dict[str, list[dict]] = {}
 
     for tab_obj, dept in zip(dept_tabs_ui, DEPTS):
@@ -353,10 +335,10 @@ with tab_detail:
             saved      = proj["results"].get(dept["name"])
             pred_delay = saved.predecessor_delay if saved else 0
 
-            parts_state  = proj["parts_state"][dept["name"]]
-            done_p       = sum(1 for p in parts_state if p.get("actual_finish"))
-            total_p      = len(parts_state)
-            comp_pct     = done_p / total_p * 100 if total_p else 0
+            parts_state = proj["parts_state"][dept["name"]]
+            done_p      = sum(1 for p in parts_state if p.get("actual_finish"))
+            total_p     = len(parts_state)
+            comp_pct    = done_p / total_p * 100 if total_p else 0
 
             dept_header(dept["name"], dept["duration"], comp_pct, pred_delay)
 
@@ -364,15 +346,15 @@ with tab_detail:
             adj_end = tl_entry["original_end"] + timedelta(days=pred_delay)
             ps = dept.get("planned_start")
             pe = dept.get("planned_end")
-            info_pills([
-                ("Original End",     tl_entry["original_end"].strftime("%d %b %Y")),
-                ("Adjusted End",     adj_end.strftime("%d %b %Y")),
-                ("Predecessor Shift",f"+{pred_delay}d"),
-                ("Planned",          f"{ps.strftime('%d %b %Y') if ps else '—'} → {pe.strftime('%d %b %Y') if pe else '—'}"),
+            pill_row([
+                ("Original end",     tl_entry["original_end"].strftime("%d %b %Y")),
+                ("Adjusted end",     adj_end.strftime("%d %b %Y")),
+                ("Upstream shift",   f"+{pred_delay}d" if pred_delay else "None"),
+                ("Dept planned",     f"{ps.strftime('%d %b %Y') if ps else '—'} → {pe.strftime('%d %b %Y') if pe else '—'}"),
                 ("Parts",            f"{done_p}/{total_p} done"),
             ])
 
-            section_heading(f"Parts ({total_p})")
+            section_label(f"Parts — {total_p} total")
 
             raw_parts = render_part_inputs(
                 dept_name=dept["name"],
@@ -385,13 +367,12 @@ with tab_detail:
             dept_part_inputs[dept["name"]] = raw_parts
 
             if st.button(
-                f"➕  Add Part to {dept['name']}",
+                f"➕  Add Part",
                 key=f"addpart_{st.session_state.active_project_idx}_{dept['name']}",
             ):
                 parts_state.append({"name": f"Part {len(parts_state)+1}"})
                 st.rerun()
 
-    # Run analysis
     if run_analysis:
         with st.spinner("Running analysis and cascading delays..."):
             raw_results: list[DepartmentResult] = []
@@ -410,7 +391,7 @@ with tab_detail:
             final = propagate_delays(raw_results)
             for dr in final:
                 proj["results"][dr.name] = dr
-        st.toast(f"✅ Analysis done for {proj['code']}! Remember to Save.", icon="📊")
+        st.toast(f"✅ Analysis complete for {proj['code']}! Remember to Save.", icon="📊")
         st.rerun()
 
 
@@ -421,16 +402,19 @@ with tab_analytics:
     proj    = st.session_state.projects[st.session_state.active_project_idx]
     results = list(proj["results"].values())
 
-    st.markdown(
-        f"<div class='page-hero'>"
-        f"<h1>📊 Analytics — {proj['code']}</h1>"
-        f"<p>Performance breakdown across all departments and parts.</p>"
-        f"</div>",
-        unsafe_allow_html=True,
+    hero(
+        "Analytics",
+        "Performance breakdown across all departments and parts.",
+        accent=proj["code"],
     )
 
     if not results:
-        st.info("👈  Enter part data in the **Project Detail** tab, then click **▶ Run Analysis** in the sidebar.")
+        st.markdown(
+            '<div class="wms-info-box">📊 No analysis results yet. '
+            'Go to the <strong>Enter Data</strong> tab, fill in the part dates, '
+            'then click <strong>▶ Run Analysis</strong> in the sidebar.</div>',
+            unsafe_allow_html=True,
+        )
     else:
         sorted_results = sorted(results, key=lambda r: r.order)
         all_marks      = [dr.avg_marks for dr in sorted_results]
@@ -438,102 +422,94 @@ with tab_analytics:
         total_delay    = sum(dr.actual_delay_out for dr in sorted_results)
         done           = sum(1 for dr in sorted_results for p in dr.parts if p.actual_finish)
         total_p        = sum(len(dr.parts) for dr in sorted_results)
+        racing         = sum(1 for dr in sorted_results if getattr(dr, "any_racing", False))
 
         # Top KPIs
-        section_heading("Project KPIs")
-        k1, k2, k3, k4 = st.columns(4)
-        with k1: kpi_card("Overall Score",    f"{overall:.0f}",
-                           sub="out of 100", color=marks_color(overall))
-        with k2: kpi_card("Cascaded Delay",   f"{total_delay}d",
-                           sub="finish delay only", color="#DC2626" if total_delay else "#059669")
-        with k3: kpi_card("Parts Complete",   f"{done}/{total_p}",
-                           sub=f"{done/total_p*100:.0f}% done", color="#3B5BDB")
-        with k4:
-            racing = sum(1 for dr in sorted_results if getattr(dr, "any_racing", False))
-            kpi_card("Late Start / On Time", str(racing),
-                     sub="departments recovered", color="#D97706")
-
-        st.markdown("<div style='margin-bottom:8px'></div>", unsafe_allow_html=True)
+        section_label("Project KPIs")
+        kpi_row([
+            ("Overall Score",       f"{overall:.0f}", "out of 100",           marks_color(overall)),
+            ("Cascaded Delay",      f"{total_delay}d", "finish delays only",  "#EF4444" if total_delay else "#10B981"),
+            ("Parts Complete",      f"{done}/{total_p}", f"{done/total_p*100:.0f}%", "#F59E0B"),
+            ("Departments Recovered", str(racing), "late start, on-time finish", "#1C2536"),
+        ])
 
         # Department score cards
-        section_heading("Department Scores")
+        section_label("Department Performance")
         dcols = st.columns(len(sorted_results))
         for col, dr in zip(dcols, sorted_results):
             with col:
-                ring  = completion_ring_html(dr.completion_pct, marks_color(dr.avg_marks), 64)
+                ring = completion_ring_html(dr.completion_pct, marks_color(dr.avg_marks), 60)
                 delay_badge = (
                     f'<span class="badge badge-red">{dr.actual_delay_out}d cascade</span>'
                     if dr.actual_delay_out else
                     '<span class="badge badge-green">No cascade</span>'
                 )
                 racing_badge = (
-                    '<span class="badge badge-yellow">⚡ Recovered</span>'
+                    '<span class="badge badge-amber">⚡ Recovered</span>'
                     if getattr(dr, "any_racing", False) else ""
                 )
                 st.markdown(
-                    f"""<div class="wms-card" style="text-align:center">
-                      <div style="display:flex;justify-content:center;margin-bottom:8px">{ring}</div>
-                      <div style="font-weight:700;color:#1A1F36;font-size:0.9rem">{dr.name}</div>
-                      <div style="font-size:1.5rem;font-weight:700;color:{marks_color(dr.avg_marks)};margin:4px 0">
-                        {dr.avg_marks:.0f}<span style="font-size:0.8rem;color:#A0AEC0"> /100</span></div>
-                      <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:6px">
-                        {delay_badge}{racing_badge}
+                    f"""<div class="wms-proj-card" style="text-align:center">
+                      <div style="display:flex;justify-content:center;margin-bottom:10px">{ring}</div>
+                      <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:0.92rem;color:#1C1C1E">{dr.name}</div>
+                      <div style="font-family:'Sora',sans-serif;font-size:1.8rem;font-weight:800;color:{marks_color(dr.avg_marks)};line-height:1.2;margin:6px 0">
+                        {dr.avg_marks:.0f}<span style="font-size:0.8rem;color:#9CA3AF;font-family:'DM Sans',sans-serif"> /100</span>
                       </div>
+                      <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap">{delay_badge}{racing_badge}</div>
                     </div>""",
                     unsafe_allow_html=True,
                 )
 
         # Charts
-        section_heading("Timeline")
+        section_label("Timeline — Baseline vs Actual")
         st.plotly_chart(gantt_chart(sorted_results, proj["start"]), use_container_width=True)
 
-        section_heading("Efficiency")
+        section_label("Efficiency Scores")
         st.plotly_chart(efficiency_bar_chart(sorted_results), use_container_width=True)
 
-        # Gauges
-        section_heading("Performance Gauges")
+        section_label("Performance Gauges")
         gcols = st.columns(len(sorted_results))
         for col, dr in zip(gcols, sorted_results):
             with col:
                 st.plotly_chart(marks_gauge(dr.name, dr.avg_marks), use_container_width=True)
 
-        # Planned vs Actual table
-        section_heading("Planned vs Actual")
+        # Planned vs Actual
+        section_label("Planned vs Actual Dates")
         pva = []
         for dr in sorted_results:
             finished   = [p for p in dr.parts if p.actual_finish]
             actual_end = max(p.actual_finish for p in finished).strftime("%d %b %Y") if finished else "Pending"
             pva.append({
-                "Department":           dr.name,
-                "Planned Start":        dr.planned_start.strftime("%d %b %Y") if dr.planned_start else "—",
-                "Planned End":          dr.planned_end.strftime("%d %b %Y")   if dr.planned_end   else "—",
-                "Adjusted End":         dr.shifted_end.strftime("%d %b %Y"),
-                "Actual End":           actual_end,
-                "Start Delay (days)":   getattr(dr, "max_start_delay", 0) or "—",
-                "Cascade Delay (days)": dr.actual_delay_out or "✅ 0",
-                "Recovered?":           "⚡ Yes" if getattr(dr, "any_racing", False) else "—",
-                "Score":                round(dr.avg_marks, 1),
+                "Department":     dr.name,
+                "Planned Start":  dr.planned_start.strftime("%d %b %Y") if dr.planned_start else "—",
+                "Planned End":    dr.planned_end.strftime("%d %b %Y")   if dr.planned_end   else "—",
+                "Adjusted End":   dr.shifted_end.strftime("%d %b %Y"),
+                "Actual End":     actual_end,
+                "Start Delay":    f"{getattr(dr,'max_start_delay',0)}d" if getattr(dr,'max_start_delay',0) else "None",
+                "Cascade Delay":  f"{dr.actual_delay_out}d" if dr.actual_delay_out else "✓ None",
+                "Recovered":      "⚡ Yes" if getattr(dr,"any_racing",False) else "—",
+                "Score":          round(dr.avg_marks, 1),
             })
         st.dataframe(pd.DataFrame(pva), use_container_width=True, hide_index=True)
 
-        with st.expander("ℹ️  How cascade delay is calculated"):
+        with st.expander("ℹ️  How cascade delay works"):
             st.markdown("""
 | Scenario | Cascade to next dept |
 |---|---|
-| Started on time, finished on time | **0 days** |
-| **Started late, finished on time ⚡** | **0 days — no cascade** |
-| Started on time, finished late | **N days** |
-| Started late, finished late | **finish overshoot only** |
+| Started on time, finished on time | ✅ **0 days** |
+| **Started late, finished on time** | ✅ **0 days — recovered, no cascade** |
+| Started on time, finished late | ❌ **N days** |
+| Started late, finished late | ❌ **finish overshoot only cascades** |
 
-Only finish delay propagates forward. A department that started late but
-recovered and delivered on time has **zero impact** on the next department.
+Only **finish delay** propagates. A department that starts late but delivers on time
+has **zero impact** on the next department's deadline.
 """)
 
         # Delay log
         delayed = [(dr.name, p) for dr in sorted_results
                    for p in dr.parts if p.actual_finish and p.delay_days > 0]
         if delayed:
-            section_heading("Delay Log")
+            section_label("Delay Log")
             d_rows = []
             for dname, p in delayed:
                 d_rows.append({
@@ -543,48 +519,71 @@ recovered and delivered on time has **zero impact** on the next department.
                     "Category":   p.delay_category or "—",
                     "Type":       "External" if p.is_external else "Internal",
                     "Penalty":    "None" if p.is_external else f"−{p.delay_days*5} marks",
-                    "Marks":      round(p.marks, 1),
+                    "Score":      round(p.marks, 1),
                     "Reason":     (p.delay_reason or "—")[:80],
                 })
             st.dataframe(pd.DataFrame(d_rows), use_container_width=True, hide_index=True)
         else:
-            st.success("🎉  No delays recorded for this project.", icon=None)
+            st.markdown(
+                '<div class="wms-success-box">🎉 No delays recorded for this project. All departments on track!</div>',
+                unsafe_allow_html=True,
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  TAB 4 — REPORT
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_report:
-    st.markdown(
-        "<div class='page-hero'>"
-        "<h1>📥 Download Report</h1>"
-        "<p>Export your project data as a professional Excel workbook.</p>"
-        "</div>",
-        unsafe_allow_html=True,
+    hero(
+        "Download Report",
+        "Export a professional Excel workbook with all project data, scores and delay logs.",
     )
 
-    scope = st.radio(
-        "Report scope",
-        ["Active project only", "All projects"],
-        horizontal=True,
-        label_visibility="collapsed",
-    )
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        scope = st.radio(
+            "Report scope",
+            ["Active project only", "All projects"],
+            label_visibility="collapsed",
+        )
     proj_list = ([st.session_state.projects[st.session_state.active_project_idx]]
                  if scope == "Active project only"
                  else st.session_state.projects)
     analysed = [p for p in proj_list if p["results"]]
 
     if not analysed:
-        st.info("Run analysis on at least one project first, then come back here to download.")
-    else:
-        # What's inside callout
         st.markdown(
-            """<div class="wms-card-blue">
-              <div style="font-weight:700;color:#1E3A8A;margin-bottom:10px">📋 Report Contents</div>
-              <div style="font-size:0.85rem;color:#1E40AF;line-height:1.8">
-                <b>Sheet 1 — Projects Overview</b>: All projects with KPIs and efficiency chart<br>
-                <b>Sheet 2+ — Part Detail</b>: Every part with planned/actual dates, delays, marks<br>
-                <b>Sheet 3+ — Delay Log</b>: Only delayed parts with category and reason
+            '<div class="wms-info-box">Run analysis on at least one project first, '
+            'then come back here to download.</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        # Report contents
+        st.markdown(
+            """<div class="wms-report-box">
+              <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:0.95rem;color:#1C1C1E;margin-bottom:12px">
+                📋 What's inside the Excel file
+              </div>
+              <div class="wms-report-sheet">
+                <div class="wms-report-icon">📊</div>
+                <div>
+                  <div style="font-weight:600;color:#1C1C1E;font-size:0.85rem">Sheet 1 — Projects Overview</div>
+                  <div style="color:#6B7280;font-size:0.78rem;margin-top:2px">All projects with KPIs, scores and an efficiency bar chart</div>
+                </div>
+              </div>
+              <div class="wms-report-sheet">
+                <div class="wms-report-icon">📋</div>
+                <div>
+                  <div style="font-weight:600;color:#1C1C1E;font-size:0.85rem">Sheet 2+ — Part Detail (per project)</div>
+                  <div style="color:#6B7280;font-size:0.78rem;margin-top:2px">Every part with planned dates, actual dates, delays, and marks</div>
+                </div>
+              </div>
+              <div class="wms-report-sheet">
+                <div class="wms-report-icon">⚠️</div>
+                <div>
+                  <div style="font-weight:600;color:#1C1C1E;font-size:0.85rem">Sheet 3+ — Delay Log (per project)</div>
+                  <div style="color:#6B7280;font-size:0.78rem;margin-top:2px">Only delayed parts — category, internal/external, penalty, root cause</div>
+                </div>
               </div>
             </div>""",
             unsafe_allow_html=True,
@@ -611,23 +610,22 @@ with tab_report:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-        st.caption(f"Covering {len(analysed)} project(s) · Generated {date.today().strftime('%d %b %Y')}")
+        st.caption(f"Covers {len(analysed)} project(s) · Generated {date.today().strftime('%d %b %Y')}")
 
-        # Preview
-        section_heading("Preview")
+        section_label("Data Preview")
         prev_rows = []
         for p in analysed:
             for dr in sorted(p["results"].values(), key=lambda r: r.order):
                 for pt in dr.parts:
                     prev_rows.append({
-                        "Project":    p["code"],
-                        "Dept":       dr.name,
-                        "Part":       pt.name,
-                        "Planned End": pt.planned_end.strftime("%d %b %Y") if pt.planned_end else "—",
-                        "Actual Start": pt.actual_start.strftime("%d %b %Y") if getattr(pt,"actual_start",None) else "—",
+                        "Project":       p["code"],
+                        "Department":    dr.name,
+                        "Part":          pt.name,
+                        "Planned End":   pt.planned_end.strftime("%d %b %Y") if pt.planned_end else "—",
+                        "Actual Start":  pt.actual_start.strftime("%d %b %Y") if getattr(pt,"actual_start",None) else "—",
                         "Adj. Deadline": pt.adjusted_deadline.strftime("%d %b %Y"),
-                        "Actual Finish": pt.actual_finish.strftime("%d %b %Y") if pt.actual_finish else "Pending",
-                        "Delay Days": pt.delay_days if pt.actual_finish else "—",
-                        "Marks":      round(pt.marks,1) if pt.actual_finish else "—",
+                        "Actual Finish": pt.actual_finish.strftime("%d %b %Y") if pt.actual_finish else "⏳ Pending",
+                        "Delay (days)":  pt.delay_days if pt.actual_finish else "—",
+                        "Marks":         round(pt.marks,1) if pt.actual_finish else "—",
                     })
         st.dataframe(pd.DataFrame(prev_rows), use_container_width=True, hide_index=True)
