@@ -175,6 +175,7 @@ div[data-testid="stExpander"] {
     margin-bottom: 24px;
     position: relative;
     overflow: hidden;
+    color: white;
 }
 .wms-hero::before {
     content: '';
@@ -333,6 +334,7 @@ div[data-testid="stExpander"] {
     padding: 20px 22px;
     transition: all 0.2s;
     height: 100%;
+    color: #1C1C1E;
 }
 .wms-proj-card:hover { border-color: #F59E0B; box-shadow: 0 8px 30px rgba(28,37,54,0.08); transform: translateY(-2px); }
 
