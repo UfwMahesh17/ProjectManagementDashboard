@@ -136,7 +136,8 @@ with st.sidebar:
         pct     = int(done_p / total_p * 100) if total_p else 0
         col     = "#10B981" if pct == 100 else "#F59E0B" if pct > 0 else "#6B7A99"
 
-        with st.expander(f"{dept['name']}  ·  {done_p}/{total_p} done", expanded=False):
+        exp_label = f"{dept['name']} ({done_p}/{total_p})"
+        with st.expander(exp_label, expanded=False):
             # Mini progress bar inside expander
             st.markdown(
                 f'<div style="height:4px;background:#374357;border-radius:99px;overflow:hidden;margin-bottom:10px">'
@@ -236,7 +237,6 @@ with tab_all:
         status_txt = "✓ On Track" if results and delay==0 else (f"⚠ {delay}d delay" if results else "Not analysed")
         
         display_name = p.get("name") or p["code"]
-        badge_html = f'<span class="badge badge-purple">Score: {avg_sc}</span>' if avg_sc else ""
 
         with cols[i % 3]:
             # Construct HTML string to avoid extra P tags from Streamlit markdown triple quotes
@@ -254,7 +254,7 @@ with tab_all:
                 f'<span class="badge badge-{status_cls}">{status_txt}</span>'
                 f'<span class="badge badge-slate">{len(p["departments"])} depts</span>'
                 f'<span class="badge badge-slate">{total_p} parts</span>'
-                f'{badge_html}'
+                f'{"<span class=\'badge badge-purple\'>Score: " + str(avg_sc) + "</span>" if avg_sc else ""}'
                 f'</div>'
                 f'</div>'
             )
