@@ -52,15 +52,20 @@ for k, v in [("projects", [_new_project(1)]), ("active_project_idx", 0), ("load_
 with st.sidebar:
     # Brand
     st.markdown(
-        '<div class="sb-brand">'
-        '<div class="sb-brand-name">⚙️ Adwik WMS</div>'
-        '<div class="sb-brand-sub">Workflow Analytics System</div>'
-        '</div>',
+        "<div style='padding:16px 0 12px;border-bottom:1px solid #374357;margin-bottom:12px'>"
+        "<div style='font-family:Sora,sans-serif;font-size:1.1rem;font-weight:800;color:#FFFFFF'>⚙️ Adwik WMS</div>"
+        "<div style='font-size:0.72rem;color:#6B7A99;margin-top:2px'>Workflow Analytics System</div>"
+        "</div>",
         unsafe_allow_html=True,
     )
 
     # ── Save / Load ───────────────────────────────────────────────────────────
-    st.markdown('<div class="sb-section-label">💾 Save & Load</div>', unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:0.65rem;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:0.8px;color:#6B7A99;margin:12px 0 6px;display:flex;"
+        "align-items:center;gap:6px'>💾 Save & Load<span style='flex:1;height:1px;background:#374357;display:inline-block;margin-left:6px'></span></div>",
+        unsafe_allow_html=True,
+    )
     save_bytes = serialize_projects(st.session_state.projects)
     st.download_button(
         "⬇️  Save progress (.json)",
@@ -91,7 +96,12 @@ with st.sidebar:
     st.divider()
 
     # ── Project switcher ──────────────────────────────────────────────────────
-    st.markdown('<div class="sb-section-label">📁 Projects</div>', unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:0.65rem;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:0.8px;color:#6B7A99;margin:12px 0 6px;display:flex;"
+        "align-items:center;gap:6px'>📁 Projects<span style='flex:1;height:1px;background:#374357;display:inline-block;margin-left:6px'></span></div>",
+        unsafe_allow_html=True,
+    )
     proj_labels = [p["code"] for p in st.session_state.projects]
     sel_idx = st.selectbox(
         "Project", range(len(proj_labels)),
@@ -116,7 +126,12 @@ with st.sidebar:
 
     # ── Project settings ──────────────────────────────────────────────────────
     proj = st.session_state.projects[st.session_state.active_project_idx]
-    st.markdown('<div class="sb-section-label">⚙️ Project Settings</div>', unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:0.65rem;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:0.8px;color:#6B7A99;margin:12px 0 6px;display:flex;"
+        "align-items:center;gap:6px'>⚙️ Project Settings<span style='flex:1;height:1px;background:#374357;display:inline-block;margin-left:6px'></span></div>",
+        unsafe_allow_html=True,
+    )
     proj["code"]        = st.text_input("Project Code",  value=proj["code"],  key="pc")
     proj["start"]       = st.date_input("Start Date",    value=proj["start"], key="ps")
     proj["description"] = st.text_input("Description",   value=proj.get("description",""), key="pd",
@@ -125,7 +140,12 @@ with st.sidebar:
     st.divider()
 
     # ── Departments ───────────────────────────────────────────────────────────
-    st.markdown('<div class="sb-section-label">🏭 Departments</div>', unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:0.65rem;font-weight:700;text-transform:uppercase;"
+        "letter-spacing:0.8px;color:#6B7A99;margin:12px 0 6px;display:flex;"
+        "align-items:center;gap:6px'>🏭 Departments<span style='flex:1;height:1px;background:#374357;display:inline-block;margin-left:6px'></span></div>",
+        unsafe_allow_html=True,
+    )
     depts = proj["departments"]
     to_delete = None
 
@@ -231,30 +251,36 @@ with tab_all:
         sc_color   = marks_color(avg_sc) if avg_sc else "#9CA3AF"
         ring       = completion_ring_html(pct, sc_color, 64)
 
-        status_cls = "green" if results and delay==0 else "red" if delay else "blue"
-        status_txt = "✓ On Track" if results and delay==0 else (f"⚠ {delay}d delay" if results else "Not analysed")
+        if results and delay == 0:
+            status_cls, status_txt = "green", "✓ On Track"
+            badge_bg, badge_fg = "#D1FAE5", "#065F46"
+        elif delay:
+            status_cls, status_txt = "red", f"⚠ {delay}d delay"
+            badge_bg, badge_fg = "#FEE2E2", "#991B1B"
+        else:
+            status_cls, status_txt = "blue", "Not analysed"
+            badge_bg, badge_fg = "#DBEAFE", "#1E40AF"
 
         with cols[i % 3]:
-            # Construct HTML string to avoid extra P tags from Streamlit markdown triple quotes
-            proj_card_html = (
+            start_str   = p["start"].strftime("%d %b %Y") if isinstance(p["start"], date) else str(p["start"])
+            desc_str    = p.get("description") or "No description"
+            score_badge = f'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-size:0.72rem;font-weight:600;background:#EDE9FE;color:#5B21B6">Score: {avg_sc}</span>' if avg_sc else ""
+            card_html   = (
                 f'<div class="wms-proj-card">'
                 f'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
                 f'<div style="flex:1">'
-                f'<div style="font-family:\'Sora\',sans-serif;font-size:1.1rem;font-weight:700;color:#1C1C22">{p["code"]}</div>'
-                f'<div style="font-size:0.85rem;color:#4B5563;margin-top:4px">{p.get("description") or "No description"}</div>'
-                f'<div style="font-size:0.75rem;color:#9CA3AF;margin-top:6px">📅 {p["start"].strftime("%d %b %Y") if isinstance(p["start"],date) else p["start"]}</div>'
-                f'</div>'
-                f'<div style="flex-shrink:0">{ring}</div>'
-                f'</div>'
-                f'<div style="margin-top:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
-                f'<span class="badge badge-{status_cls}">{status_txt}</span>'
-                f'<span class="badge badge-slate">{len(p["departments"])} depts</span>'
-                f'<span class="badge badge-slate">{total_p} parts</span>'
-                f'{"<span class=\"badge badge-purple\">Score: "+str(avg_sc)+"</span>" if avg_sc else ""}'
-                f'</div>'
-                f'</div>'
+                f'<div style="font-family:Sora,sans-serif;font-size:1.05rem;font-weight:700;color:#1C1C1E">{p["code"]}</div>'
+                f'<div style="font-size:0.78rem;color:#6B7280;margin-top:2px">{desc_str}</div>'
+                f'<div style="font-size:0.72rem;color:#9CA3AF;margin-top:4px">📅 {start_str}</div>'
+                f'</div><div style="flex-shrink:0">{ring}</div></div>'
+                f'<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+                f'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-size:0.72rem;font-weight:600;background:{badge_bg};color:{badge_fg}">{status_txt}</span>'
+                f'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-size:0.72rem;font-weight:600;background:#E2E8F0;color:#475569">{len(p["departments"])} depts</span>'
+                f'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-size:0.72rem;font-weight:600;background:#E2E8F0;color:#475569">{total_p} parts</span>'
+                f'{score_badge}'
+                f'</div></div>'
             )
-            st.markdown(proj_card_html, unsafe_allow_html=True)
+            st.markdown(card_html, unsafe_allow_html=True)
 
     # Summary table
     section_label("Full Summary")
@@ -447,17 +473,18 @@ with tab_analytics:
                     '<span class="badge badge-amber">⚡ Recovered</span>'
                     if getattr(dr, "any_racing", False) else ""
                 )
-                st.markdown(
-                    f"""<div class="wms-proj-card" style="text-align:center">
-                      <div style="display:flex;justify-content:center;margin-bottom:10px">{ring}</div>
-                      <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:0.92rem;color:#1C1C1E">{dr.name}</div>
-                      <div style="font-family:'Sora',sans-serif;font-size:1.8rem;font-weight:800;color:{marks_color(dr.avg_marks)};line-height:1.2;margin:6px 0">
-                        {dr.avg_marks:.0f}<span style="font-size:0.8rem;color:#9CA3AF;font-family:'DM Sans',sans-serif"> /100</span>
-                      </div>
-                      <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap">{delay_badge}{racing_badge}</div>
-                    </div>""",
-                    unsafe_allow_html=True,
+                avg_m   = int(dr.avg_marks)
+                mc      = marks_color(dr.avg_marks)
+                dc_html = (
+                    f'<div class="wms-proj-card" style="text-align:center">'
+                    f'<div style="display:flex;justify-content:center;margin-bottom:10px">{ring}</div>'
+                    f'<div style="font-family:Sora,sans-serif;font-weight:700;font-size:0.92rem;color:#1C1C1E">{dr.name}</div>'
+                    f'<div style="font-family:Sora,sans-serif;font-size:1.8rem;font-weight:800;color:{mc};line-height:1.2;margin:6px 0">'
+                    f'{avg_m}<span style="font-size:0.8rem;color:#9CA3AF;font-family:DM Sans,sans-serif"> /100</span></div>'
+                    f'<div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap">{delay_badge}{racing_badge}</div>'
+                    f'</div>'
                 )
+                st.markdown(dc_html, unsafe_allow_html=True)
 
         # Charts
         section_label("Timeline — Baseline vs Actual")
