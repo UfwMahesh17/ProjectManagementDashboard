@@ -239,15 +239,15 @@ with tab_all:
                 f"""<div class="wms-proj-card">
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
                     <div style="flex:1">
-                      <div style="font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;color:#1C1C1E">{p['code']}</div>
-                      <div style="font-size:0.78rem;color:#6B7280;margin-top:2px">{p.get('description') or 'No description'}</div>
-                      <div style="font-size:0.72rem;color:#9CA3AF;margin-top:4px">
+                      <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:#1C1C22">{p['code']}</div>
+                      <div style="font-size:0.85rem;color:#4B5563;margin-top:4px">{p.get('description') or 'No description'}</div>
+                      <div style="font-size:0.75rem;color:#9CA3AF;margin-top:6px">
                         📅 {p['start'].strftime('%d %b %Y') if isinstance(p['start'],date) else p['start']}
                       </div>
                     </div>
                     <div style="flex-shrink:0">{ring}</div>
                   </div>
-                  <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <div style="margin-top:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                     <span class="badge badge-{status_cls}">{status_txt}</span>
                     <span class="badge badge-slate">{len(p['departments'])} depts</span>
                     <span class="badge badge-slate">{total_p} parts</span>
