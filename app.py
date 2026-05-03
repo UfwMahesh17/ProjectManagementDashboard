@@ -235,27 +235,26 @@ with tab_all:
         status_txt = "✓ On Track" if results and delay==0 else (f"⚠ {delay}d delay" if results else "Not analysed")
 
         with cols[i % 3]:
-            st.markdown(
-                f"""<div class="wms-proj-card">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-                    <div style="flex:1">
-                      <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:#1C1C22">{p['code']}</div>
-                      <div style="font-size:0.85rem;color:#4B5563;margin-top:4px">{p.get('description') or 'No description'}</div>
-                      <div style="font-size:0.75rem;color:#9CA3AF;margin-top:6px">
-                        📅 {p['start'].strftime('%d %b %Y') if isinstance(p['start'],date) else p['start']}
-                      </div>
-                    </div>
-                    <div style="flex-shrink:0">{ring}</div>
-                  </div>
-                  <div style="margin-top:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                    <span class="badge badge-{status_cls}">{status_txt}</span>
-                    <span class="badge badge-slate">{len(p['departments'])} depts</span>
-                    <span class="badge badge-slate">{total_p} parts</span>
-                    {"<span class='badge badge-purple'>Score: "+str(avg_sc)+"</span>" if avg_sc else ""}
-                  </div>
-                </div>""",
-                unsafe_allow_html=True,
+            # Construct HTML string to avoid extra P tags from Streamlit markdown triple quotes
+            proj_card_html = (
+                f'<div class="wms-proj-card">'
+                f'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
+                f'<div style="flex:1">'
+                f'<div style="font-family:\'Sora\',sans-serif;font-size:1.1rem;font-weight:700;color:#1C1C22">{p["code"]}</div>'
+                f'<div style="font-size:0.85rem;color:#4B5563;margin-top:4px">{p.get("description") or "No description"}</div>'
+                f'<div style="font-size:0.75rem;color:#9CA3AF;margin-top:6px">📅 {p["start"].strftime("%d %b %Y") if isinstance(p["start"],date) else p["start"]}</div>'
+                f'</div>'
+                f'<div style="flex-shrink:0">{ring}</div>'
+                f'</div>'
+                f'<div style="margin-top:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+                f'<span class="badge badge-{status_cls}">{status_txt}</span>'
+                f'<span class="badge badge-slate">{len(p["departments"])} depts</span>'
+                f'<span class="badge badge-slate">{total_p} parts</span>'
+                f'{"<span class=\"badge badge-purple\">Score: "+str(avg_sc)+"</span>" if avg_sc else ""}'
+                f'</div>'
+                f'</div>'
             )
+            st.markdown(proj_card_html, unsafe_allow_html=True)
 
     # Summary table
     section_label("Full Summary")
