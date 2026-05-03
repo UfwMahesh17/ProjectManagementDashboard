@@ -236,6 +236,7 @@ with tab_all:
         status_txt = "✓ On Track" if results and delay==0 else (f"⚠ {delay}d delay" if results else "Not analysed")
         
         display_name = p.get("name") or p["code"]
+        badge_html = f'<span class="badge badge-purple">Score: {avg_sc}</span>' if avg_sc else ""
 
         with cols[i % 3]:
             # Construct HTML string to avoid extra P tags from Streamlit markdown triple quotes
@@ -243,7 +244,7 @@ with tab_all:
                 f'<div class="wms-proj-card">'
                 f'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
                 f'<div style="flex:1">'
-                f'<div style="font-family:\'Sora\',sans-serif;font-size:1.1rem;font-weight:700;color:#1C1C22">{display_name}</div>'
+                f'<div style="font-family:Sora,sans-serif;font-size:1.1rem;font-weight:700;color:#1C1C22">{display_name}</div>'
                 f'<div style="font-size:0.85rem;color:#4B5563;margin-top:4px">{p.get("description") or "No description"}</div>'
                 f'<div style="font-size:0.75rem;color:#9CA3AF;margin-top:6px">📅 {p["start"].strftime("%d %b %Y") if isinstance(p["start"],date) else p["start"]}</div>'
                 f'</div>'
@@ -253,7 +254,7 @@ with tab_all:
                 f'<span class="badge badge-{status_cls}">{status_txt}</span>'
                 f'<span class="badge badge-slate">{len(p["departments"])} depts</span>'
                 f'<span class="badge badge-slate">{total_p} parts</span>'
-                f'{"<span class=\"badge badge-purple\">Score: "+str(avg_sc)+"</span>" if avg_sc else ""}'
+                f'{badge_html}'
                 f'</div>'
                 f'</div>'
             )
