@@ -431,7 +431,7 @@ with tab_analytics:
         section_label("Project KPIs")
         kpi_row([
             ("Overall Score",       f"{overall:.0f}", "out of 100",           marks_color(overall)),
-            ("Cascaded Delay",      f"{total_delay}d", "finish delays only",  "#EF4444" if total_delay else "#10B981"),
+            ("Total Delay",        f"{total_delay}d", "across all depts",    "#EF4444" if total_delay else "#10B981"),
             ("Parts Complete",      f"{done}/{total_p}", f"{done/total_p*100:.0f}%", "#F59E0B"),
             ("Departments Recovered", str(racing), "late start, on-time finish", "#1C2536"),
         ])
@@ -443,9 +443,9 @@ with tab_analytics:
             with col:
                 ring = completion_ring_html(dr.completion_pct, marks_color(dr.avg_marks), 60)
                 delay_badge = (
-                    f'<span class="badge badge-red">{dr.actual_delay_out}d cascade</span>'
+                    f'<span class="badge badge-red">{dr.actual_delay_out}d late</span>'
                     if dr.actual_delay_out else
-                    '<span class="badge badge-green">No cascade</span>'
+                    '<span class="badge badge-green">On Time</span>'
                 )
                 racing_badge = (
                     '<span class="badge badge-amber">⚡ Recovered</span>'
@@ -486,10 +486,9 @@ with tab_analytics:
                 "Department":     dr.name,
                 "Planned Start":  dr.planned_start.strftime("%d %b %Y") if dr.planned_start else "—",
                 "Planned End":    dr.planned_end.strftime("%d %b %Y")   if dr.planned_end   else "—",
-                "Adjusted End":   dr.shifted_end.strftime("%d %b %Y"),
                 "Actual End":     actual_end,
                 "Start Delay":    f"{getattr(dr,'max_start_delay',0)}d" if getattr(dr,'max_start_delay',0) else "None",
-                "Cascade Delay":  f"{dr.actual_delay_out}d" if dr.actual_delay_out else "✓ None",
+                "Finish Delay":   f"{dr.actual_delay_out}d" if dr.actual_delay_out else "✓ None",
                 "Recovered":      "⚡ Yes" if getattr(dr,"any_racing",False) else "—",
                 "Score":          round(dr.avg_marks, 1),
             })
