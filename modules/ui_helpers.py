@@ -31,6 +31,26 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 { color: #FFFFFF !important; }
 
+/* FIX SIDEBAR EXPANDER TEXT OVERLAP & SUMMARY */
+[data-testid="stSidebar"] div[data-testid="stExpander"] {
+    background: #273043 !important;
+    border: 1px solid #374357 !important;
+    border-radius: 8px !important;
+    margin-bottom: 4px !important;
+}
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
+    background: transparent !important;
+}
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
+    font-size: 0.8rem !important;
+    color: #E8ECF4 !important;
+    font-weight: 500 !important;
+}
+/* This hides the "keyboard_double_arrow_right" and other icon strings leaking into the text */
+[data-testid="stSidebar"] div[data-testid="stExpander"] svg {
+    flex-shrink: 0 !important;
+}
+
 /* FIX SIDEBAR UPLOADER MESS */
 [data-testid="stSidebar"] [data-testid="stFileUploader"] > label {
     display: none !important;
