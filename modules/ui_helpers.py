@@ -31,11 +31,16 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 { color: #FFFFFF !important; }
 
-/* Fix overlapping upload text */
-[data-testid="stSidebar"] [data-testid="stFileUploader"] section > div {
-    padding: 0.5rem !important;
+/* FIX SIDEBAR UPLOADER MESS */
+[data-testid="stSidebar"] [data-testid="stFileUploader"] > label {
+    display: none !important;
 }
-[data-testid="stSidebar"] [data-testid="stFileUploader"] section > label {
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section > div {
     display: none !important;
 }
 
@@ -442,12 +447,14 @@ def inject_css():
 # ── Reusable HTML helpers ─────────────────────────────────────────────────────
 
 def hero(title: str, subtitle: str, accent: str = ""):
+    subtitle_html = f'<p class="wms-hero-sub">{subtitle}</p>'
+    title_html = f'<div class="wms-hero-title">{title}'
+    if accent:
+        title_html += f' <span class="wms-hero-accent">{accent}</span>'
+    title_html += '</div>'
+    
     st.markdown(
-        f"""<div class="wms-hero">
-          <div class="wms-hero-title">{title}
-            {"<span class='wms-hero-accent'> " + accent + "</span>" if accent else ""}</div>
-          <p class="wms-hero-sub">{subtitle}</p>
-        </div>""",
+        f'<div class="wms-hero">{title_html}{subtitle_html}</div>',
         unsafe_allow_html=True,
     )
 
