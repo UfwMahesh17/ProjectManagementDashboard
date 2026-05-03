@@ -44,7 +44,7 @@ class PartEntry:
     name: str
     original_deadline: date          # absolute planned end date for this dept
     actual_finish: Optional[date]    # None = still in progress
-    predecessor_delay_days: int      # cumulative upstream finish delay
+    predecessor_delay_days: int = 0  # FORCE to 0 to disable cascading
     planned_start: Optional[date] = None   # dept planned start
     planned_end:   Optional[date] = None   # dept planned end
     actual_start:  Optional[date] = None   # NEW: when did work actually begin?
@@ -81,9 +81,12 @@ class PartEntry:
         return self.planned_start + timedelta(days=self.predecessor_delay_days)
 
     def _calculate(self):
+        # FORCE cascading to 0 for calculation
+        self.predecessor_delay_days = 0 
+        self.adjusted_deadline = self.original_deadline
+        
         # ── Start-delay analysis ──────────────────────────────────────────────
-        adj_start = self.adjusted_start
-        if self.actual_start and adj_start:
+        adj_start = self.planned_start  # Use planned start directly
             self.start_delay_days = max(0, (self.actual_start - adj_start).days)
         else:
             self.start_delay_days = 0
@@ -234,35 +237,36 @@ def build_department_timeline(
     project_start: date,
     departments: list[dict] = DEFAULT_DEPARTMENTS,
 ) -> list[dict]:
+    """
+    Fixed timeline where departments have fixed end dates 
+    (no sequential cursor shifting).
+    """
     timeline = []
-    cursor = project_start
     for dept in departments:
+        # Each department now has its own fixed end date based on duration from project start
+        # unless you want them to be manually staggered in build_department_timeline.
+        # But to avoid cascading, we treat each one as independent.
         timeline.append({
             "name":           dept["name"],
             "order":          dept["order"],
             "duration":       dept["duration"],
-            "original_start": cursor,
-            "original_end":   cursor + timedelta(days=dept["duration"] - 1),
+            "original_start": project_start,
+            "original_end":   project_start + timedelta(days=dept["duration"] - 1),
             "planned_start":  dept.get("planned_start"),
             "planned_end":    dept.get("planned_end"),
         })
-        cursor += timedelta(days=dept["duration"])
     return timeline
 
 
 def propagate_delays(dept_results: list[DepartmentResult]) -> list[DepartmentResult]:
     """
     Walk departments in order.
-    Only FINISH overshoot cascades — start delays are local to their dept.
+    Update: Deadline cascading is disabled. Each department uses its individual dates.
     """
-    cumulative_delay = 0
     for dr in sorted(dept_results, key=lambda d: d.order):
-        dr.predecessor_delay = cumulative_delay
+        dr.predecessor_delay = 0
         for part in dr.parts:
-            part.predecessor_delay_days = cumulative_delay
-            part.adjusted_deadline = calculate_shifted_deadline(
-                part.original_deadline, cumulative_delay
-            )
+            part.predecessor_delay_days = 0
+            part.adjusted_deadline = part.original_deadline
             part._calculate()
-        cumulative_delay += dr.actual_delay_out   # only finish delay cascades
     return dept_results
