@@ -664,6 +664,7 @@ def render_part_inputs(
         )
 
         # ── inputs ───────────────────────────────────────────────────────────
+        st.markdown(f"##### Data Entry for {part.get('name', f'Part {i+1}')}")
         c1, c2, c3, c4, c5, cd = st.columns([2.2, 1.5, 1.5, 1.5, 1.5, 0.5])
         part_name = c1.text_input(
             "Part name", value=part.get("name", f"Part {i+1}"),
