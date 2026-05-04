@@ -37,14 +37,25 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     border: 1px solid #374357 !important;
     border-radius: 8px !important;
     margin-bottom: 4px !important;
+    overflow: hidden !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary {
     background: transparent !important;
+    padding: 8px 12px !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
-    font-size: 0.8rem !important;
+    font-size: 0.85rem !important;
     color: #E8ECF4 !important;
-    font-weight: 500 !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 140px !important;
+}
+[data-testid="stSidebar"] div[data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
+    font-size: 0.85rem !important;
+    line-height: 1.2 !important;
 }
 /* This hides the "keyboard_double_arrow_right" and other icon strings leaking into the text */
 [data-testid="stSidebar"] div[data-testid="stExpander"] svg {
@@ -462,6 +473,17 @@ div[data-testid="stExpander"] {
     color: #FFFFFF !important;
 }
 .sb-brand-sub { font-size: 0.72rem; color: #6B7A99 !important; margin-top: 2px; }
+
+/* Hide redundant sidebar element strings and check for icon leakage */
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+    overflow: hidden !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary span[data-testid="stMarkdownContainer"] {
+    display: none !important;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary p {
+    display: block !important;
+}
 
 .sb-section-label {
     font-size: 0.65rem; font-weight: 700;
