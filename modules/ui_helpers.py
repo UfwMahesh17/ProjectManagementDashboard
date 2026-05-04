@@ -147,6 +147,12 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 }
 
 /* ── Main content inputs ── */
+.stTextInput label, .stNumberInput label, .stDateInput label, .stTextArea label {
+    color: #1C1C1E !important;
+    font-weight: 600 !important;
+    display: block !important;
+    visibility: visible !important;
+}
 .stTextInput input, .stNumberInput input, .stDateInput input, .stTextArea textarea {
     background: #FFFFFF !important;
     border: 1.5px solid #E0DBD1 !important;
@@ -669,11 +675,12 @@ def render_part_inputs(
         part_name = c1.text_input(
             "Part name", value=part.get("name", f"Part {i+1}"),
             key=f"{key_prefix}_p{i}_name", placeholder="e.g. Frame Drawing",
+            label_visibility="visible"
         )
-        planned_start = c2.date_input("Planned start", value=part.get("planned_start"), key=f"{key_prefix}_p{i}_ps")
-        planned_end   = c3.date_input("Planned end",   value=part.get("planned_end"),   key=f"{key_prefix}_p{i}_pe")
-        actual_start  = c4.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as")
-        actual_finish = c5.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af")
+        planned_start = c2.date_input("Planned start", value=part.get("planned_start"), key=f"{key_prefix}_p{i}_ps", label_visibility="visible")
+        planned_end   = c3.date_input("Planned end",   value=part.get("planned_end"),   key=f"{key_prefix}_p{i}_pe", label_visibility="visible")
+        actual_start  = c4.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as", label_visibility="visible")
+        actual_finish = c5.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af", label_visibility="visible")
         cd.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
         if cd.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
             to_delete = i
