@@ -672,10 +672,8 @@ def render_part_inputs(
         )
         planned_start = c2.date_input("Planned start", value=part.get("planned_start"), key=f"{key_prefix}_p{i}_ps")
         planned_end   = c3.date_input("Planned end",   value=part.get("planned_end"),   key=f"{key_prefix}_p{i}_pe")
-        actual_start  = c4.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as",
-                                      help="When did work actually begin?")
-        actual_finish = c5.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af",
-                                      help="Leave blank if still in progress")
+        actual_start  = c4.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as")
+        actual_finish = c5.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af")
         cd.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
         if cd.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
             to_delete = i
@@ -684,35 +682,12 @@ def render_part_inputs(
         delay_cat    = part.get("delay_category")
         delay_reason = part.get("delay_reason")
 
-        if p_start:
-            # DEADLINE CASCADE DISABLED: Use p_start directly
-            adj_ps = p_start
-            if actual_start and actual_start > adj_ps:
-                lag       = (actual_start - adj_ps).days
-                days_left = (adj_deadline - actual_start).days
-
-                if actual_finish is None:
-                    if days_left >= 0:
-                        st.markdown(
-                            f'<div class="wms-warn-box">⏰ <strong>{part_name}</strong> started '
-                            f'<strong>{lag} day(s) late</strong>. '
-                            f'You have <strong>{days_left} days</strong> remaining to finish by '
-                            f'<strong>{adj_deadline.strftime("%d %b %Y")}</strong>.</div>',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown(
-                            f'<div class="wms-error-box">🚨 <strong>{part_name}</strong> started '
-                            f'<strong>{lag} day(s) late</strong> — the target completion date is already exceeded by '
-                            f'<strong>{abs(days_left)} day(s)</strong>.</div>',
-                            unsafe_allow_html=True,
-                        )
-                elif actual_finish <= adj_deadline:
-                    st.markdown(
-                        f'<div class="wms-success-box">⚡ <strong>{part_name}</strong> started '
-                        f'<strong>{lag} day(s) late</strong> but recovered and finished on time.</div>',
-                        unsafe_allow_html=True,
-                    )
+        if planned_start:
+            # DEADLINE CASCADE DISABLED: Use planned_start directly
+            adj_ps = planned_start
+            # With only 2 dates, we can't really track starting delays separately, 
+            # so we focus on the completion delay scoring.
+            pass
 
         # ── finish-delay logging ──────────────────────────────────────────────
         if actual_finish and actual_finish > adj_deadline:
