@@ -32,9 +32,11 @@ def _from_json_safe(obj: Any) -> Any:
     """
     if isinstance(obj, str):
         try:
-            if len(obj) == 10 and obj[4] == '-' and obj[7] == '-':
-                return date.fromisoformat(obj)
-        except ValueError:
+            # Flexible date parsing
+            if "-" in obj and len(obj) >= 10:
+                # Try full isoformat first
+                return datetime.fromisoformat(obj).date() if len(obj) > 10 else date.fromisoformat(obj[:10])
+        except Exception:
             pass
         return obj
     if isinstance(obj, dict):
@@ -96,9 +98,22 @@ def deserialize_projects(raw_bytes: bytes) -> tuple[list[dict], str]:
     # Validate & backfill any missing keys (forward-compatibility)
     clean = []
     for p in projects:
+        # Ensure we don't crash if p is not a dict
+        if not isinstance(p, dict):
+            continue
+            
+        # Ensure dates are actually date objects, backfill with current if missing
+        project_start = p.get("start")
+        if isinstance(project_start, str):
+            try: project_start = date.fromisoformat(project_start[:10])
+            except: project_start = date.today()
+        elif not isinstance(project_start, date):
+            project_start = date.today()
+
         clean.append({
             "code":        p.get("code", "PRJ-001"),
-            "start":       p.get("start", date.today()),
+            "name":        p.get("name", p.get("code", "New Project")),
+            "start":       project_start,
             "description": p.get("description", ""),
             "departments": p.get("departments", []),
             "parts_state": p.get("parts_state", {}),
