@@ -663,8 +663,8 @@ def render_part_inputs(
     dept_name, dept_duration, dept_original_end,
     predecessor_delay, parts_state, key_prefix,
 ):
-    # DEADLINE CASCADE DISABLED: adj_deadline is always the original_end
-    adj_deadline = dept_original_end
+    # PREVIOUS: adj_deadline = dept_original_end
+    # REFINED: Every part has its own manual deadline (Planned end)
     parts_out    = []
     to_delete    = None
 
@@ -672,13 +672,18 @@ def render_part_inputs(
         af         = part.get("actual_finish")
         a_start    = part.get("actual_start")
         p_start    = part.get("planned_start")
-        on_time    = af and af <= adj_deadline
-        late       = af and af > adj_deadline
+        p_end      = part.get("planned_end")
+        
+        # USE PLANNED END AS THE DEADLINE FOR SCORING
+        part_deadline = p_end if p_end else dept_original_end
+        
+        on_time    = af and af <= part_deadline
+        late       = af and af > part_deadline
         in_prog    = a_start and not af
         card_class = "ontime" if on_time else "late" if late else "progress" if in_prog else "empty"
 
         if on_time:   status_html = '<span class="badge badge-green">✓ On Time</span>'
-        elif late:    status_html = f'<span class="badge badge-red">⚠ Late {(af - adj_deadline).days}d</span>'
+        elif late:    status_html = f'<span class="badge badge-red">⚠ Late {(af - part_deadline).days}d</span>'
         elif in_prog: status_html = '<span class="badge badge-amber">⏳ In Progress</span>'
         else:         status_html = '<span class="badge badge-slate">Not Started</span>'
 
@@ -707,37 +712,26 @@ def render_part_inputs(
         if cd.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
             to_delete = i
 
-        # ── start-delay intelligence ─────────────────────────────────────────
-        delay_cat    = part.get("delay_category")
-        delay_reason = part.get("delay_reason")
-
-        if planned_start:
-            # DEADLINE CASCADE DISABLED: Use planned_start directly
-            adj_ps = planned_start
-            # With only 2 dates, we can't really track starting delays separately, 
-            # so we focus on the completion delay scoring.
-            pass
-
         # ── finish-delay logging ──────────────────────────────────────────────
-        if actual_finish and actual_finish > adj_deadline:
-            overdue = (actual_finish - adj_deadline).days
+        if actual_finish and actual_finish > part_deadline:
+            overdue = (actual_finish - part_deadline).days
             penalty = overdue * 5
             st.markdown(
                 f'<div class="wms-error-box">⚠️ <strong>{part_name}</strong> is '
-                f'<strong>{overdue} day(s) late</strong> past the target deadline '
-                f'({adj_deadline.strftime("%d %b %Y")}). Please log the delay below.</div>',
+                f'<strong>{overdue} day(s) late</strong> past its Planned End '
+                f'({part_deadline.strftime("%d %b %Y")}). Please log the delay below.</div>',
                 unsafe_allow_html=True,
             )
             dc1, dc2 = st.columns([2, 3])
             delay_cat = dc1.selectbox(
                 "Delay category *", options=DELAY_CATEGORIES,
-                index=DELAY_CATEGORIES.index(delay_cat) if delay_cat in DELAY_CATEGORIES else 0,
+                index=DELAY_CATEGORIES.index(part.get("delay_category")) if part.get("delay_category") in DELAY_CATEGORIES else 0,
                 key=f"{key_prefix}_p{i}_cat",
             )
             delay_reason = dc2.text_area(
                 "Root cause explanation *",
-                value=delay_reason or "",
-                placeholder="What caused this delay? Be specific so it can be prevented next time.",
+                value=part.get("delay_reason") or "",
+                placeholder="What caused this delay?",
                 key=f"{key_prefix}_p{i}_reason", height=80,
             )
             if not delay_reason:
@@ -752,14 +746,14 @@ def render_part_inputs(
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
         parts_out.append(dict(
             name=part_name,
-            original_deadline=dept_original_end,
+            original_deadline=part_deadline, # Save the part-specific deadline
             actual_finish=actual_finish,
             actual_start=actual_start,
             planned_start=planned_start,
             planned_end=planned_end,
-            predecessor_delay_days=predecessor_delay,
-            delay_category=delay_cat,
-            delay_reason=delay_reason,
+            predecessor_delay_days=0, # Forced 0 as per Independent Mode
+            delay_category=delay_cat if actual_finish and actual_finish > part_deadline else None,
+            delay_reason=delay_reason if actual_finish and actual_finish > part_deadline else None,
         ))
 
     if to_delete is not None:
