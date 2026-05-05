@@ -528,7 +528,7 @@ has **zero impact** on the next department's deadline.
                     "Delay Days": p.delay_days,
                     "Category":   p.delay_category or "—",
                     "Type":       "External" if p.is_external else "Internal",
-                    "Penalty":    "None" if p.is_external else f"−{p.delay_days*5} marks",
+                    "Penalty":    "None" if p.is_external else f"−{p.delay_days * 0.5} marks",
                     "Score":      round(p.marks, 1),
                     "Reason":     (p.delay_reason or "—")[:80],
                 })
