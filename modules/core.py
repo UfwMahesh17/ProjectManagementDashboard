@@ -176,14 +176,20 @@ class DepartmentResult:
     def actual_delay_out(self) -> int:
         """
         The ONLY number that cascades to the next department.
-        Rule: based purely on finish date vs shifted_end.
-        A department that started late but finished on time contributes ZERO.
+        REFINED: Based on the max delay of any individual part'S PLANNED END.
         """
         finished = [p for p in self.parts if p.actual_finish is not None]
         if not finished:
             return 0
-        latest_finish = max(p.actual_finish for p in finished)
-        return max(0, (latest_finish - self.shifted_end).days)
+            
+        # CALCULATE MAX DELAY OFFSET
+        max_delay = 0
+        for p in finished:
+            deadline = p.planned_end if p.planned_end else self.shifted_end
+            delay = (p.actual_finish - deadline).days
+            if delay > max_delay:
+                max_delay = delay
+        return max_delay
 
     @property
     def max_start_delay(self) -> int:
