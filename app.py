@@ -76,14 +76,21 @@ with st.sidebar:
         help="Select a previously saved .json file",
     )
     if uploaded:
-        loaded, feedback = deserialize_projects(uploaded.read())
-        if loaded:
-            st.session_state.projects = loaded
-            st.session_state.active_project_idx = 0
-            st.session_state.load_feedback = f"✅ {feedback}"
-            st.rerun()
-        else:
-            st.session_state.load_feedback = f"❌ {feedback}"
+        # Use a simpler check for the upload state
+        content = uploaded.getvalue()
+        if content and (st.session_state.get("last_uploaded_name") != uploaded.name):
+            loaded, feedback = deserialize_projects(content)
+            if loaded:
+                st.session_state.projects = loaded
+                st.session_state.active_project_idx = 0
+                st.session_state.load_feedback = f"✅ {feedback}"
+                st.session_state.last_uploaded_name = uploaded.name
+                st.rerun()
+            else:
+                st.session_state.load_feedback = f"❌ {feedback}"
+    else:
+        st.session_state.last_uploaded_name = None
+
     if st.session_state.load_feedback:
         fn = st.success if st.session_state.load_feedback.startswith("✅") else st.error
         fn(st.session_state.load_feedback, icon=None)
