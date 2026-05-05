@@ -716,7 +716,7 @@ def render_part_inputs(
         # ── finish-delay logging ──────────────────────────────────────────────
         if actual_finish and actual_finish > part_deadline:
             overdue = (actual_finish - part_deadline).days
-            penalty = overdue * 5
+            penalty = overdue * 0.5
             st.markdown(
                 f'<div class="wms-error-box">⚠️ <strong>{part_name}</strong> is '
                 f'<strong>{overdue} day(s) late</strong> past its Planned End '
