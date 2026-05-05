@@ -117,7 +117,7 @@ class PartEntry:
         part_deadline = self.planned_end if self.planned_end else self.original_deadline
         
         if self.actual_finish > part_deadline:
-            self.delay_days = (self.actual_finish - part_deadline).days
+            self.delay_days = max(0, (self.actual_finish - part_deadline).days)
             if self.is_external:
                 self.marks = BASE_MARKS          # no penalty for client delays
             else:
@@ -188,7 +188,9 @@ class DepartmentResult:
         # CALCULATE MAX DELAY OFFSET
         max_delay = 0
         for p in finished:
-            deadline = p.planned_end if p.planned_end else self.shifted_end
+            # Use the same effective deadline logic as PartEntry and UI
+            # Fix: Use original_deadline as the fallback for part-level calculation
+            deadline = p.planned_end if p.planned_end else p.original_deadline
             delay = (p.actual_finish - deadline).days
             if delay > max_delay:
                 max_delay = delay
