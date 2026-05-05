@@ -174,11 +174,14 @@ def _build_detail(ws, project_code, dept_results):
             bg = LIGHT_ROW if row_num % 2 == 0 else WHITE
             
             # Use part.planned_end for delay calculation consistency
+            # This matches core.py and ui_helpers.py "Effective Deadline" logic
             deadline = part.planned_end if part.planned_end else dr.shifted_end
             p_delay = (part.actual_finish - deadline).days if part.actual_finish else 0
             p_delay = max(0, p_delay)
             
-            penalty = p_delay * 0.5 if not (part.delay_category in {"Client Approval Lag", "Client Change Request"}) else 0
+            # Check for external categories correctly
+            is_external = part.delay_category in {"Client Approval Lag", "Client Change Request"}
+            penalty = p_delay * 0.5 if not is_external else 0
 
             row_data = [
                 dr.name, 
