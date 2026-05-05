@@ -184,7 +184,7 @@ def _build_detail(ws, project_code, dept_results):
                 dr.name, 
                 part.name,
                 part.planned_start.strftime("%d %b %Y") if part.planned_start else "—",
-                part.planned_end.strftime("%d %b %Y")   if part.planned_end   else "—",
+                deadline.strftime("%d %b %Y")           if deadline           else "—",
                 part.actual_start.strftime("%d %b %Y") if getattr(part, "actual_start", None) else "—",
                 part.actual_finish.strftime("%d %b %Y") if part.actual_finish else "Pending",
                 p_delay if part.actual_finish else "—",
