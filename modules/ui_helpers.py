@@ -714,6 +714,9 @@ def render_part_inputs(
             to_delete = i
 
         # ── finish-delay logging ──────────────────────────────────────────────
+        delay_cat = part.get("delay_category")
+        delay_reason = part.get("delay_reason")
+        
         if actual_finish and actual_finish > part_deadline:
             overdue = (actual_finish - part_deadline).days
             penalty = overdue * 0.5
