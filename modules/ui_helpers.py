@@ -693,7 +693,11 @@ def render_part_inputs(
             f'<div class="wms-part-header">'
             f'<span class="wms-part-num">Part {i+1}</span>'
             f'{status_html}'
-            f'</div></div>',
+            f'</div>'
+            f'<div style="font-size:0.75rem; color:#6B7280; margin-top:-8px; margin-bottom:8px;">'
+            f'Target: {part_deadline.strftime("%d %b %Y")}'
+            f'</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
