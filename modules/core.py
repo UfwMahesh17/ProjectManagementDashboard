@@ -112,9 +112,12 @@ class PartEntry:
         else:
             days_worked = None
 
-        # Finish delay: only measured against the ADJUSTED deadline
-        if self.actual_finish > self.adjusted_deadline:
-            self.delay_days = (self.actual_finish - self.adjusted_deadline).days
+        # SCREENSHOT FIX: DELAY IS CALCULATED B/W PLANNED END AND ACTUAL FINISH
+        # Each part now calculates its own specific delay independently.
+        part_deadline = self.planned_end if self.planned_end else self.original_deadline
+        
+        if self.actual_finish > part_deadline:
+            self.delay_days = (self.actual_finish - part_deadline).days
             if self.is_external:
                 self.marks = BASE_MARKS          # no penalty for client delays
             else:
@@ -125,7 +128,7 @@ class PartEntry:
 
         # Buffer: how many days ahead/behind the adjusted deadline it finished
         # positive = finished early, negative = finished late
-        self.buffer_days = (self.adjusted_deadline - self.actual_finish).days
+        self.buffer_days = (part_deadline - self.actual_finish).days
 
         # Racing-to-finish: started late but still managed to finish on time
         adj_start = self.adjusted_start
