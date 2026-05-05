@@ -663,8 +663,8 @@ def render_part_inputs(
     dept_name, dept_duration, dept_original_end,
     predecessor_delay, parts_state, key_prefix,
 ):
-    # PREVIOUS: adj_deadline = dept_original_end
-    # REFINED: Every part has its own manual deadline (Planned end)
+    # DEADLINE REFINED: Every part has its own manual deadline (Planned end)
+    # The department headers will still show the department planned window for context
     parts_out    = []
     to_delete    = None
 
@@ -674,7 +674,8 @@ def render_part_inputs(
         p_start    = part.get("planned_start")
         p_end      = part.get("planned_end")
         
-        # USE PLANNED END AS THE DEADLINE FOR SCORING
+        # SCREENSHOT FIX: DELAY IS CALCULATED B/W PLANNED END AND ACTUAL FINISH
+        # Use planned_end if available, otherwise fallback to dept default
         part_deadline = p_end if p_end else dept_original_end
         
         on_time    = af and af <= part_deadline
