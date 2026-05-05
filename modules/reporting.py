@@ -158,11 +158,11 @@ def _build_detail(ws, project_code, dept_results):
     headers = [
         "Department", "Part Name",
         "Planned Start", "Planned End",
-        "Original Deadline", "Predecessor\nDelay (days)",
-        "Adjusted Deadline", "Actual Finish",
-        "Delay Days", "Marks",
+        "Actual Start", "Actual Finish",
+        "Delay (days)", "Penalty Marks",
+        "Rating"
     ]
-    cols = list("ABCDEFGHIJ")
+    cols = list("ABCDEFGHI")
     ws.row_dimensions[3].height = 36
     for col, h in zip(cols, headers):
         ws[f"{col}3"] = h
@@ -172,30 +172,31 @@ def _build_detail(ws, project_code, dept_results):
     for dr in sorted(dept_results, key=lambda d: d.order):
         for part in dr.parts:
             bg = LIGHT_ROW if row_num % 2 == 0 else WHITE
+            
+            # Use part.planned_end for delay calculation consistency
+            deadline = part.planned_end if part.planned_end else dr.shifted_end
+            p_delay = (part.actual_finish - deadline).days if part.actual_finish else 0
+            p_delay = max(0, p_delay)
+            
+            penalty = p_delay * 0.5 if not (part.delay_category in {"Client Approval Lag", "Client Change Request"}) else 0
+
             row_data = [
-                dr.name, part.name,
+                dr.name, 
+                part.name,
                 part.planned_start.strftime("%d %b %Y") if part.planned_start else "—",
                 part.planned_end.strftime("%d %b %Y")   if part.planned_end   else "—",
-                getattr(part, "actual_start", None) and part.actual_start.strftime("%d %b %Y") or "—",
-                part.start_delay_days if part.start_delay_days else "—",
-                part.original_deadline.strftime("%d %b %Y"),
-                part.predecessor_delay_days,
-                part.adjusted_deadline.strftime("%d %b %Y"),
+                part.actual_start.strftime("%d %b %Y") if getattr(part, "actual_start", None) else "—",
                 part.actual_finish.strftime("%d %b %Y") if part.actual_finish else "Pending",
-                part.delay_days  if part.actual_finish else "—",
-                round(part.marks, 1) if part.actual_finish else "—",
-                "⚡ Yes" if part.racing_to_finish else "—",
+                p_delay if part.actual_finish else "—",
+                penalty if part.actual_finish else "—",
+                "✅ Good" if p_delay == 0 else "⚠️ Delay" if p_delay < 5 else "❌ Severe"
             ]
             for col, val in zip(cols, row_data):
                 ws[f"{col}{row_num}"] = val
             _data(ws, row_num, cols, bg)
-            if part.actual_finish:
-                ws[f"L{row_num}"].fill = PatternFill(
-                    "solid", start_color=_cell_color(part.marks)
-                )
             row_num += 1
 
-    widths = [16, 20, 14, 14, 14, 12, 16, 14, 16, 14, 12, 10, 18]
+    widths = [16, 25, 14, 14, 14, 14, 12, 14, 12]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
 
