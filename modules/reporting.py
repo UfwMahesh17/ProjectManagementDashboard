@@ -222,7 +222,7 @@ def _build_delay_log(ws, project_code, dept_results):
         for part in dr.parts:
             if part.actual_finish and part.delay_days > 0:
                 bg      = "FEF9E7" if part.is_external else "FADBD8"
-                penalty = "None (External)" if part.is_external else f"−{int(part.delay_days*5)} marks"
+                penalty = "None (External)" if part.is_external else f"−{part.delay_days * 0.5} marks"
                 row_data = [
                     dr.name, part.name, part.delay_days,
                     part.delay_category or "—",
