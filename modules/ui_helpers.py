@@ -714,16 +714,17 @@ def render_part_inputs(
             to_delete = i
 
         # ── finish-delay logging ──────────────────────────────────────────────
+        # Use a secondary state to ensure values stick between reruns
         delay_cat = part.get("delay_category")
         delay_reason = part.get("delay_reason")
         
-        if actual_finish and actual_finish > part_deadline:
-            overdue = (actual_finish - part_deadline).days
+        if actual_finish and planned_end and actual_finish > planned_end:
+            overdue = (actual_finish - planned_end).days
             penalty = overdue * 0.5
             st.markdown(
                 f'<div class="wms-error-box">⚠️ <strong>{part_name}</strong> is '
                 f'<strong>{overdue} day(s) late</strong> past its Planned End '
-                f'({part_deadline.strftime("%d %b %Y")}). Please log the delay below.</div>',
+                f'({planned_end.strftime("%d %b %Y")}). Please log the delay below.</div>',
                 unsafe_allow_html=True,
             )
             dc1, dc2 = st.columns([2, 3])
@@ -756,8 +757,8 @@ def render_part_inputs(
             planned_start=planned_start,
             planned_end=planned_end,
             predecessor_delay_days=0, # Forced 0 as per Independent Mode
-            delay_category=delay_cat if actual_finish and actual_finish > part_deadline else None,
-            delay_reason=delay_reason if actual_finish and actual_finish > part_deadline else None,
+            delay_category=delay_cat if actual_finish and planned_end and actual_finish > planned_end else None,
+            delay_reason=delay_reason if actual_finish and planned_end and actual_finish > planned_end else None,
         ))
 
     if to_delete is not None:
