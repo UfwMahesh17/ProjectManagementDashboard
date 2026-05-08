@@ -156,13 +156,13 @@ def _build_detail(ws, project_code, dept_results):
     ws.row_dimensions[1].height = 26
 
     headers = [
-        "Department", "Part Name",
-        "Planned Start", "Planned End",
-        "Actual Start", "Actual Finish",
+        "Department", "Part Name", "PIC",
+        "Planned Start", "Planned End", "Plan Dur (days)",
+        "Actual Start", "Actual Finish", "Act Dur (days)",
         "Delay (days)", "Penalty Marks",
         "Rating"
     ]
-    cols = list("ABCDEFGHI")
+    cols = list("ABCDEFGHIJKL")
     ws.row_dimensions[3].height = 36
     for col, h in zip(cols, headers):
         ws[f"{col}3"] = h
@@ -173,8 +173,12 @@ def _build_detail(ws, project_code, dept_results):
         for part in dr.parts:
             bg = LIGHT_ROW if row_num % 2 == 0 else WHITE
             
+            # Plan Duration
+            p_dur = (part.planned_end - part.planned_start).days + 1 if part.planned_start and part.planned_end else 0
+            # Actual Duration
+            a_dur = (part.actual_finish - part.actual_start).days + 1 if hasattr(part, "actual_start") and part.actual_start and part.actual_finish else 0
+
             # Use part.planned_end for delay calculation consistency
-            # This matches core.py and ui_helpers.py "Effective Deadline" logic
             deadline = part.planned_end if part.planned_end else dr.shifted_end
             p_delay = (part.actual_finish - deadline).days if part.actual_finish else 0
             p_delay = max(0, p_delay)
@@ -186,10 +190,13 @@ def _build_detail(ws, project_code, dept_results):
             row_data = [
                 dr.name, 
                 part.name,
+                getattr(part, "pic", ""),
                 part.planned_start.strftime("%d %b %Y") if part.planned_start else "—",
                 deadline.strftime("%d %b %Y")           if deadline           else "—",
+                p_dur if p_dur > 0 else "—",
                 part.actual_start.strftime("%d %b %Y") if getattr(part, "actual_start", None) else "—",
                 part.actual_finish.strftime("%d %b %Y") if part.actual_finish else "Pending",
+                a_dur if a_dur > 0 else "—",
                 p_delay if part.actual_finish else "—",
                 penalty if part.actual_finish else "—",
                 "✅ Good" if p_delay == 0 else "⚠️ Delay" if p_delay < 5 else "❌ Severe"
@@ -199,7 +206,7 @@ def _build_detail(ws, project_code, dept_results):
             _data(ws, row_num, cols, bg)
             row_num += 1
 
-    widths = [16, 25, 14, 14, 14, 14, 12, 14, 12]
+    widths = [16, 25, 15, 14, 14, 15, 14, 14, 15, 12, 14, 12]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
 
@@ -212,9 +219,9 @@ def _build_delay_log(ws, project_code, dept_results):
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 26
 
-    headers = ["Department", "Part Name", "Delay Days",
+    headers = ["Department", "Part Name", "PIC", "Delay Days",
                "Category", "Type", "Penalty Applied", "Reason / Notes"]
-    cols = list("ABCDEFG")
+    cols = list("ABCDEFGH")
     ws.row_dimensions[3].height = 36
     for col, h in zip(cols, headers):
         ws[f"{col}3"] = h
@@ -227,7 +234,7 @@ def _build_delay_log(ws, project_code, dept_results):
                 bg      = "FEF9E7" if part.is_external else "FADBD8"
                 penalty = "None (External)" if part.is_external else f"−{part.delay_days * 0.5} marks"
                 row_data = [
-                    dr.name, part.name, part.delay_days,
+                    dr.name, part.name, getattr(part, "pic", ""), part.delay_days,
                     part.delay_category or "—",
                     "External" if part.is_external else "Internal",
                     penalty,
@@ -239,11 +246,11 @@ def _build_delay_log(ws, project_code, dept_results):
                 row_num += 1
 
     if row_num == 4:
-        ws.merge_cells("A4:G4")
+        ws.merge_cells("A4:H4")
         ws["A4"] = "✓  No delays recorded."
         ws["A4"].font      = Font(bold=True, color="27AE60", name="Calibri")
         ws["A4"].alignment = Alignment(horizontal="center")
 
-    widths = [16, 20, 12, 22, 12, 18, 40]
+    widths = [16, 20, 15, 12, 22, 12, 18, 40]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
