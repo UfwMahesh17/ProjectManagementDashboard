@@ -703,19 +703,34 @@ def render_part_inputs(
 
         # ── inputs ───────────────────────────────────────────────────────────
         st.markdown(f"##### Data Entry for {part.get('name', f'Part {i+1}')}")
-        c1, c2, c3, c4, c5, cd = st.columns([2.2, 1.5, 1.5, 1.5, 1.5, 0.5])
-        part_name = c1.text_input(
+        c_name, c_pic, c_ps, c_pe, c_as, c_af, c_del = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.2, 0.5])
+        
+        part_name = c_name.text_input(
             "Part name", value=part.get("name", f"Part {i+1}"),
-            key=f"{key_prefix}_p{i}_name", placeholder="e.g. Frame Drawing",
-            label_visibility="visible"
+            key=f"{key_prefix}_p{i}_name", placeholder="e.g. Frame Drawing"
         )
-        planned_start = c2.date_input("Planned start", value=part.get("planned_start"), key=f"{key_prefix}_p{i}_ps", label_visibility="visible")
-        planned_end   = c3.date_input("Planned end",   value=part.get("planned_end"),   key=f"{key_prefix}_p{i}_pe", label_visibility="visible")
-        actual_start  = c4.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as", label_visibility="visible")
-        actual_finish = c5.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af", label_visibility="visible")
-        cd.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if cd.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
+        part_pic = c_pic.text_input(
+            "PIC", value=part.get("pic", ""),
+            key=f"{key_prefix}_p{i}_pic", placeholder="Name"
+        )
+        planned_start = c_ps.date_input("Planned start", value=part.get("planned_start"), key=f"{key_prefix}_p{i}_ps")
+        planned_end   = c_pe.date_input("Planned end",   value=part.get("planned_end"),   key=f"{key_prefix}_p{i}_pe")
+        actual_start  = c_as.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as")
+        actual_finish = c_af.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af")
+        
+        c_del.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        if c_del.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
             to_delete = i
+
+        # ── duration and delay labels ───────────────────────────────────────
+        plan_dur = (planned_end - planned_start).days + 1 if planned_start and planned_end else 0
+        act_dur  = (actual_finish - actual_start).days + 1 if actual_start and actual_finish else 0
+        
+        col1, col2 = st.columns(2)
+        if plan_dur > 0:
+            col1.markdown(f"🗓️ **Planned Duration:** {plan_dur} days")
+        if act_dur > 0:
+            col2.markdown(f"⏱️ **Actual Duration:** {act_dur} days")
 
         # ── finish-delay logging ──────────────────────────────────────────────
         # Use a secondary state to ensure values stick between reruns
@@ -759,6 +774,7 @@ def render_part_inputs(
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
         parts_out.append(dict(
             name=part_name,
+            pic=part_pic,
             original_deadline=part_deadline, # Save the part-specific deadline
             actual_finish=actual_finish,
             actual_start=actual_start,
