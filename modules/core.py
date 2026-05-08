@@ -48,6 +48,7 @@ class PartEntry:
     planned_start: Optional[date] = None   # dept planned start
     planned_end:   Optional[date] = None   # dept planned end
     actual_start:  Optional[date] = None   # NEW: when did work actually begin?
+    pic:           str = ""                # NEW: Person In Charge
     delay_category: Optional[str] = None
     delay_reason:   Optional[str] = None
 
