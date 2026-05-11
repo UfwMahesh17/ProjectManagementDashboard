@@ -41,6 +41,21 @@ def _new_project(n: int) -> dict:
         "results":     {},
     }
 
+
+    def _proj_fingerprint(projects: list[dict]):
+        """Cheap fingerprint to detect obvious changes to projects.
+        Not cryptographic — just avoids re-serializing on every rerun when
+        nothing changed.
+        """
+        try:
+            count = len(projects)
+            total_parts = sum(len(p.get("parts_state", {})) if isinstance(p.get("parts_state", {}), dict) else 0 for p in projects)
+            names_hash = sum(len(str(p.get("code", ""))) + len(str(p.get("description", ""))) for p in projects)
+            start_count = sum(1 for p in projects if p.get("start"))
+            return (count, total_parts, names_hash, start_count)
+        except Exception:
+            return None
+
 for k, v in [("projects", [_new_project(1)]), ("active_project_idx", 0), ("load_feedback", "")]:
     if k not in st.session_state:
         st.session_state[k] = v
@@ -61,7 +76,13 @@ with st.sidebar:
 
     # ── Save / Load ───────────────────────────────────────────────────────────
     st.markdown('<div class="sb-section-label">💾 Save & Load</div>', unsafe_allow_html=True)
-    save_bytes = serialize_projects(st.session_state.projects)
+    # Cache serialized bytes to avoid blocking re-renders when nothing changed
+    fp = _proj_fingerprint(st.session_state.projects)
+    if st.session_state.get("_save_fp") != fp or st.session_state.get("_save_bytes") is None:
+        st.session_state["_save_fp"] = fp
+        st.session_state["_save_bytes"] = serialize_projects(st.session_state.projects)
+    save_bytes = st.session_state["_save_bytes"]
+
     st.download_button(
         "⬇️  Save progress (.json)",
         data=save_bytes,
