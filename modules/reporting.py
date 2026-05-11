@@ -92,9 +92,9 @@ def _build_projects_overview(ws, all_projects):
         "Project Code", "Start Date", "Departments",
         "Total Duration\n(days)", "Parts\nTracked", "Parts\nComplete",
         "Avg Score", "Efficiency %",
-        "Total Delay\n(days)", "Status",
+        "Avg Dept Delay\n(days)", "Total Delay\n(days)", "Status",
     ]
-    cols = list("ABCDEFGHIJ")
+    cols = list("ABCDEFGHIJK")
     ws.row_dimensions[3].height = 36
     for col, h in zip(cols, headers):
         ws[f"{col}3"] = h
@@ -113,21 +113,26 @@ def _build_projects_overview(ws, all_projects):
         marks_list   = [dr.avg_marks for dr in results]
         avg_score    = round(sum(marks_list) / len(marks_list), 1) if marks_list else 100
         eff_pct      = f"{(avg_score / BASE_MARKS)*100:.1f}%"
-        total_delay  = sum(dr.actual_delay_out for dr in results)
+        
+        # Calculate Average Department Delay
+        dept_delays = [dr.actual_delay_out for dr in results]
+        avg_dept_delay = sum(dept_delays) / len(dept_delays) if dept_delays else 0
+        
+        total_delay  = sum(dept_delays)
         status       = "✅ On Track" if total_delay == 0 else f"⚠️ {total_delay}d delay"
 
         row_data = [
             code,
             p_start.strftime("%d %b %Y") if isinstance(p_start, date) else str(p_start),
             dept_count, total_dur, total_parts, done_parts,
-            avg_score, eff_pct, total_delay, status,
+            avg_score, eff_pct, round(avg_dept_delay, 1), total_delay, status,
         ]
         for col, val in zip(cols, row_data):
             ws[f"{col}{r_idx}"] = val
         _data(ws, r_idx, cols, bg)
         ws[f"G{r_idx}"].fill = PatternFill("solid", start_color=_cell_color(avg_score))
 
-    widths = [16, 14, 13, 14, 10, 12, 11, 12, 13, 16]
+    widths = [16, 14, 13, 14, 10, 12, 11, 12, 15, 13, 16]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
 
@@ -148,7 +153,7 @@ def _build_projects_overview(ws, all_projects):
 
 
 def _build_detail(ws, project_code, dept_results):
-    ws.merge_cells("A1:K1")
+    ws.merge_cells("A1:L1")
     ws["A1"] = f"PART-LEVEL DETAIL — {project_code}"
     ws["A1"].font      = Font(bold=True, size=12, color="FFFFFF", name="Calibri")
     ws["A1"].fill      = PatternFill("solid", start_color=DARK_NAVY)
@@ -206,6 +211,27 @@ def _build_detail(ws, project_code, dept_results):
             _data(ws, row_num, cols, bg)
             row_num += 1
 
+            # If Design dept, render explicit delay events under each part
+            if dr.name.lower() == "design":
+                for ev in getattr(part, "delay_events", []):
+                    ev_bg = WHITE
+                    ev_row = [
+                        "",  # Department (left blank for event rows)
+                        f"  {ev.type}",
+                        getattr(ev, "pic", ""),
+                        ev.start.strftime("%d %b %Y") if getattr(ev, "start", None) else "—",
+                        ev.end.strftime("%d %b %Y")   if getattr(ev, "end", None)   else "—",
+                        ev.days if ev.days > 0 else "—",
+                        "—", "—", "—",
+                        ev.days if ev.days > 0 else "—",
+                        "—",
+                        "Event",
+                    ]
+                    for col, val in zip(cols, ev_row):
+                        ws[f"{col}{row_num}"] = val
+                    _data(ws, row_num, cols, ev_bg)
+                    row_num += 1
+
     widths = [16, 25, 15, 14, 14, 15, 14, 14, 15, 12, 14, 12]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
@@ -244,6 +270,26 @@ def _build_delay_log(ws, project_code, dept_results):
                     ws[f"{col}{row_num}"] = val
                 _data(ws, row_num, cols, bg)
                 row_num += 1
+
+            # Also list explicit delay events (e.g., Rework, Missed out drawing)
+            for ev in getattr(part, "delay_events", []):
+                if ev.days > 0:
+                    ev_bg = "FFF8E1"
+                    penalty = "—"
+                    row_data = [
+                        dr.name,
+                        f"{part.name} — {ev.type}",
+                        getattr(ev, "pic", ""),
+                        ev.days,
+                        part.delay_category or "—",
+                        ev.type,
+                        penalty,
+                        part.delay_reason or ev.notes or "—",
+                    ]
+                    for col, val in zip(cols, row_data):
+                        ws[f"{col}{row_num}"] = val
+                    _data(ws, row_num, cols, ev_bg)
+                    row_num += 1
 
     if row_num == 4:
         ws.merge_cells("A4:H4")
