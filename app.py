@@ -42,19 +42,19 @@ def _new_project(n: int) -> dict:
     }
 
 
-    def _proj_fingerprint(projects: list[dict]):
-        """Cheap fingerprint to detect obvious changes to projects.
-        Not cryptographic — just avoids re-serializing on every rerun when
-        nothing changed.
-        """
-        try:
-            count = len(projects)
-            total_parts = sum(len(p.get("parts_state", {})) if isinstance(p.get("parts_state", {}), dict) else 0 for p in projects)
-            names_hash = sum(len(str(p.get("code", ""))) + len(str(p.get("description", ""))) for p in projects)
-            start_count = sum(1 for p in projects if p.get("start"))
-            return (count, total_parts, names_hash, start_count)
-        except Exception:
-            return None
+def _proj_fingerprint(projects: list[dict]):
+    """Cheap fingerprint to detect obvious changes to projects.
+    Not cryptographic — just avoids re-serializing on every rerun when
+    nothing changed.
+    """
+    try:
+        count = len(projects)
+        total_parts = sum(len(p.get("parts_state", {})) if isinstance(p.get("parts_state", {}), dict) else 0 for p in projects)
+        names_hash = sum(len(str(p.get("code", ""))) + len(str(p.get("description", ""))) for p in projects)
+        start_count = sum(1 for p in projects if p.get("start"))
+        return (count, total_parts, names_hash, start_count)
+    except Exception:
+        return None
 
 for k, v in [("projects", [_new_project(1)]), ("active_project_idx", 0), ("load_feedback", "")]:
     if k not in st.session_state:
@@ -281,8 +281,8 @@ with tab_all:
                 f'<div style="margin-top:16px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
                 f'<span class="badge badge-{status_cls}">{status_txt}</span>'
                 f'<span class="badge badge-slate">{len(p["departments"])} depts</span>'
-                f'<span class="badge badge-slate">{total_p} parts</span>'
-                f'{"<span class=\'badge badge-purple\'>Score: " + str(avg_sc) + "</span>" if avg_sc else ""}'
+                f'<span class="badge badge-slate">{total_p} parts</span>' +
+                (f"<span class='badge badge-purple'>Score: {avg_sc}</span>" if avg_sc else "") +
                 f'</div>'
                 f'</div>'
             )
