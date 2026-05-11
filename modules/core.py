@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Optional
+from typing import List
 
 # ── Department catalogue (defaults) ──────────────────────────────────────────
 DEFAULT_DEPARTMENTS: list[dict] = [
@@ -51,6 +52,8 @@ class PartEntry:
     pic:           str = ""                # NEW: Person In Charge
     delay_category: Optional[str] = None
     delay_reason:   Optional[str] = None
+    # Specific delay events (e.g., Rework, Missed out drawing)
+    delay_events: List["DelayEvent"] = field(default_factory=list)
 
     # ── computed fields (never passed in) ────────────────────────────────────
     adjusted_deadline: date  = field(init=False)
@@ -67,6 +70,8 @@ class PartEntry:
     delay_days: int          = field(init=False, default=0)
     marks: float             = field(init=False, default=float(BASE_MARKS))
     is_external: bool        = field(init=False, default=False)
+    # Sum of explicit delay events attached to this part (days)
+    delay_events_total: int  = field(init=False, default=0)
 
     def __post_init__(self):
         self.adjusted_deadline = self.original_deadline + timedelta(
@@ -140,6 +145,29 @@ class PartEntry:
         else:
             self.racing_to_finish = False
 
+        # Calculate explicit delay events total (days)
+        total_ev = 0
+        for ev in getattr(self, "delay_events", []):
+            if getattr(ev, "start", None) and getattr(ev, "end", None):
+                d = max(0, (ev.end - ev.start).days + 1)
+                total_ev += d
+        self.delay_events_total = total_ev
+
+
+@dataclass
+class DelayEvent:
+    """Represents a named delay interval for a part (rework, missed drawing, etc.)."""
+    type: str
+    pic: str
+    start: Optional[date]
+    end:   Optional[date]
+    notes: Optional[str] = None
+
+    @property
+    def days(self) -> int:
+        if not self.start or not self.end:
+            return 0
+        return max(0, (self.end - self.start).days + 1)
 
 # ── DepartmentResult ──────────────────────────────────────────────────────────
 @dataclass
