@@ -237,10 +237,10 @@ with tab_all:
         total_delay = sum(dr.actual_delay_out for dr in all_results)
         all_done    = sum(1 for dr in all_results for pt in dr.parts if pt.actual_finish)
         all_total   = sum(len(v) for p in st.session_state.projects for v in p["parts_state"].values())
-        port_sc     = sum(all_scores) / len(all_scores)
+        port_sc     = sum(all_scores)  # Sum all department scores
         kpi_row([
             ("Total Projects",   str(len(st.session_state.projects)), "",               "#1C2536"),
-            ("Portfolio Score",  f"{port_sc:.0f}",  "out of 100",                      marks_color(port_sc)),
+            ("Portfolio Score",  f"{port_sc:.0f}",  "total",                           marks_color(port_sc / len(all_results))),"
             ("Total Delay",      f"{total_delay}d", "finish delay accumulated",         "#EF4444" if total_delay else "#10B981"),
             ("Parts Completed",  f"{all_done}/{all_total}", f"{all_done/all_total*100:.0f}% done", "#F59E0B"),
         ])
@@ -256,7 +256,7 @@ with tab_all:
         total_p    = sum(len(v) for v in p["parts_state"].values())
         pct        = int(done_p / total_p * 100) if total_p else 0
         marks_l    = [dr.avg_marks for dr in results]
-        avg_sc     = round(sum(marks_l)/len(marks_l), 1) if marks_l else None
+        avg_sc     = round(sum(marks_l), 1) if marks_l else None  # Sum all department scores
         delay      = sum(dr.actual_delay_out for dr in results) if results else 0
         sc_color   = marks_color(avg_sc) if avg_sc else "#9CA3AF"
         ring       = completion_ring_html(pct, sc_color, 64)
@@ -303,7 +303,7 @@ with tab_all:
             "Departments":     len(p["departments"]),
             "Total Duration":  f"{sum(d['duration'] for d in p['departments'])}d",
             "Parts":           sum(len(v) for v in p["parts_state"].values()),
-            "Avg Score":       round(sum(marks_l)/len(marks_l),1) if marks_l else "—",
+            "Total Score":     round(sum(marks_l),1) if marks_l else "—",
             "Total Delay":     f"{delay}d" if results else "—",
             "Status":          "On Track" if results and delay==0 else (f"{delay}d delay" if results else "Not analysed"),
         })
@@ -434,6 +434,21 @@ with tab_analytics:
     proj    = st.session_state.projects[st.session_state.active_project_idx]
     results = list(proj["results"].values())
 
+    # Print button using JavaScript
+    st.markdown("""
+    <div style="margin-bottom: 16px;">
+        <button onclick="window.print()" style="
+            background: #1C2536; color: #FFFFFF; border: none; border-radius: 8px;
+            padding: 8px 16px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem; transition: all 0.15s;">
+            🖨️  Print Analysis
+        </button>
+        <p style="font-size: 0.75rem; color: #6B7A99; margin-top: 4px;">
+            ℹ️ Use browser print (Cmd+P / Ctrl+P) or click button for optimized print layout
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
     hero(
         "Analytics",
         "Performance breakdown across all departments and parts.",
@@ -450,7 +465,7 @@ with tab_analytics:
     else:
         sorted_results = sorted(results, key=lambda r: r.order)
         all_marks      = [dr.avg_marks for dr in sorted_results]
-        overall        = sum(all_marks) / len(all_marks)
+        overall        = sum(all_marks)  # Sum all department scores
         total_delay    = sum(dr.actual_delay_out for dr in sorted_results)
         done           = sum(1 for dr in sorted_results for p in dr.parts if p.actual_finish)
         total_p        = sum(len(dr.parts) for dr in sorted_results)
@@ -459,7 +474,7 @@ with tab_analytics:
         # Top KPIs
         section_label("Project KPIs")
         kpi_row([
-            ("Overall Score",       f"{overall:.0f}", "out of 100",           marks_color(overall)),
+            ("Overall Score",       f"{overall:.0f}", "total",                 marks_color(overall / len(all_marks)) if all_marks else "#9CA3AF"),
             ("Total Delay",        f"{total_delay}d", "across all depts",    "#EF4444" if total_delay else "#10B981"),
             ("Parts Complete",      f"{done}/{total_p}", f"{done/total_p*100:.0f}%", "#F59E0B"),
             ("Departments Recovered", str(racing), "late start, on-time finish", "#1C2536"),
