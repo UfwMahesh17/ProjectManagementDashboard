@@ -91,7 +91,7 @@ def _build_projects_overview(ws, all_projects):
     headers = [
         "Project Code", "Start Date", "Departments",
         "Total Duration\n(days)", "Parts\nTracked", "Parts\nComplete",
-        "Avg Score", "Efficiency %",
+        "Total Score", "Efficiency %",
         "Avg Dept Delay\n(days)", "Total Delay\n(days)", "Status",
     ]
     cols = list("ABCDEFGHIJK")
@@ -111,8 +111,8 @@ def _build_projects_overview(ws, all_projects):
         total_parts  = sum(len(dr.parts) for dr in results)
         done_parts   = sum(1 for dr in results for p in dr.parts if p.actual_finish)
         marks_list   = [dr.avg_marks for dr in results]
-        avg_score    = round(sum(marks_list) / len(marks_list), 1) if marks_list else 100
-        eff_pct      = f"{(avg_score / BASE_MARKS)*100:.1f}%"
+        total_score  = sum(marks_list)  # Sum all department scores
+        eff_pct      = f"{(sum(marks_list) / (len(marks_list) * 100) * 100):.1f}%" if marks_list else "0%"
         
         # Calculate Average Department Delay
         dept_delays = [dr.actual_delay_out for dr in results]
@@ -125,12 +125,12 @@ def _build_projects_overview(ws, all_projects):
             code,
             p_start.strftime("%d %b %Y") if isinstance(p_start, date) else str(p_start),
             dept_count, total_dur, total_parts, done_parts,
-            avg_score, eff_pct, round(avg_dept_delay, 1), total_delay, status,
+            total_score, eff_pct, round(avg_dept_delay, 1), total_delay, status,
         ]
         for col, val in zip(cols, row_data):
             ws[f"{col}{r_idx}"] = val
         _data(ws, r_idx, cols, bg)
-        ws[f"G{r_idx}"].fill = PatternFill("solid", start_color=_cell_color(avg_score))
+        ws[f"G{r_idx}"].fill = PatternFill("solid", start_color=_cell_color(total_score / len(results) if results else 100))
 
     widths = [16, 14, 13, 14, 10, 12, 11, 12, 15, 13, 16]
     for col, w in zip(cols, widths):
@@ -161,13 +161,13 @@ def _build_detail(ws, project_code, dept_results):
     ws.row_dimensions[1].height = 26
 
     headers = [
-        "Department", "Part Name", "PIC",
+        "Department", "Part Name", "MC", "Description", "PIC",
         "Planned Start", "Planned End", "Plan Dur (days)",
         "Actual Start", "Actual Finish", "Act Dur (days)",
         "Delay (days)", "Penalty Marks",
         "Rating"
     ]
-    cols = list("ABCDEFGHIJKL")
+    cols = list("ABCDEFGHIJKLMN")
     ws.row_dimensions[3].height = 36
     for col, h in zip(cols, headers):
         ws[f"{col}3"] = h
@@ -195,6 +195,8 @@ def _build_detail(ws, project_code, dept_results):
             row_data = [
                 dr.name, 
                 part.name,
+                part.mc,
+                part.description,
                 getattr(part, "pic", ""),
                 part.planned_start.strftime("%d %b %Y") if part.planned_start else "—",
                 deadline.strftime("%d %b %Y")           if deadline           else "—",
@@ -232,7 +234,7 @@ def _build_detail(ws, project_code, dept_results):
                     _data(ws, row_num, cols, ev_bg)
                     row_num += 1
 
-    widths = [16, 25, 15, 14, 14, 15, 14, 14, 15, 12, 14, 12]
+    widths = [16, 16, 10, 18, 12, 14, 14, 12, 14, 14, 12, 12, 14, 12]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
 
@@ -245,9 +247,9 @@ def _build_delay_log(ws, project_code, dept_results):
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 26
 
-    headers = ["Department", "Part Name", "PIC", "Delay Days",
+    headers = ["Department", "Part Name", "MC", "Description", "PIC", "Delay Days",
                "Category", "Type", "Penalty Applied", "Reason / Notes"]
-    cols = list("ABCDEFGH")
+    cols = list("ABCDEFGHIJ")
     ws.row_dimensions[3].height = 36
     for col, h in zip(cols, headers):
         ws[f"{col}3"] = h
@@ -260,7 +262,7 @@ def _build_delay_log(ws, project_code, dept_results):
                 bg      = "FEF9E7" if part.is_external else "FADBD8"
                 penalty = "None (External)" if part.is_external else f"−{part.delay_days * 0.5} marks"
                 row_data = [
-                    dr.name, part.name, getattr(part, "pic", ""), part.delay_days,
+                    dr.name, part.name, part.mc, part.description, getattr(part, "pic", ""), part.delay_days,
                     part.delay_category or "—",
                     "External" if part.is_external else "Internal",
                     penalty,
@@ -279,6 +281,8 @@ def _build_delay_log(ws, project_code, dept_results):
                     row_data = [
                         dr.name,
                         f"{part.name} — {ev.type}",
+                        part.mc,
+                        part.description,
                         getattr(ev, "pic", ""),
                         ev.days,
                         part.delay_category or "—",
@@ -292,11 +296,11 @@ def _build_delay_log(ws, project_code, dept_results):
                     row_num += 1
 
     if row_num == 4:
-        ws.merge_cells("A4:H4")
+        ws.merge_cells("A4:J4")
         ws["A4"] = "✓  No delays recorded."
         ws["A4"].font      = Font(bold=True, color="27AE60", name="Calibri")
         ws["A4"].alignment = Alignment(horizontal="center")
 
-    widths = [16, 20, 15, 12, 22, 12, 18, 40]
+    widths = [14, 16, 10, 16, 12, 10, 18, 12, 16, 30]
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
