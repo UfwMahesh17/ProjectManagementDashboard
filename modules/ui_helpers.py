@@ -57,9 +57,8 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary::marker {
     display: none !important;
 }
-/* Hide all SVG and span elements that might contain icons */
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary svg,
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary span {
+/* Hide ONLY SVG elements, NOT text spans */
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary svg {
     display: none !important;
 }
 /* Custom arrow */
@@ -70,9 +69,21 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     transition: transform 0.2s !important;
     flex-shrink: 0 !important;
     width: 12px !important;
+    margin-right: 4px !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"][open] summary::before {
     transform: rotate(90deg) !important;
+}
+/* Style text content - keep visible */
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary span {
+    font-size: 0.85rem !important;
+    color: #E8ECF4 !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    flex: 1 !important;
+    min-width: 0 !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
     font-size: 0.85rem !important;
@@ -88,9 +99,6 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
 [data-testid="stSidebar"] div[data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
     font-size: 0.85rem !important;
     line-height: 1.2 !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"] svg {
-    display: none !important;
 }
 
 /* FIX SIDEBAR UPLOADER MESS */
