@@ -44,18 +44,32 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     padding: 8px 12px !important;
     display: flex !important;
     align-items: center !important;
-    gap: 8px !important;
+    gap: 6px !important;
     outline: none !important;
     list-style: none !important;
+    cursor: pointer !important;
+    user-select: none !important;
 }
+/* Hide native marker completely */
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary::-webkit-details-marker {
     display: none !important;
 }
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary::marker {
+    display: none !important;
+}
+/* Hide all SVG and span elements that might contain icons */
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary svg,
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary span {
+    display: none !important;
+}
+/* Custom arrow */
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary::before {
     content: "▶" !important;
-    font-size: 0.7rem !important;
+    font-size: 0.65rem !important;
     color: #6B7A99 !important;
     transition: transform 0.2s !important;
+    flex-shrink: 0 !important;
+    width: 12px !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"][open] summary::before {
     transform: rotate(90deg) !important;
