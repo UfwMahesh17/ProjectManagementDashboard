@@ -437,14 +437,14 @@ with tab_analytics:
     # Print button using JavaScript
     st.markdown("""
     <div style="margin-bottom: 16px;">
-        <button onclick="window.print()" style="
+        <button onclick="javascript:window.print();" style="
             background: #1C2536; color: #FFFFFF; border: none; border-radius: 8px;
-            padding: 8px 16px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif;
-            font-size: 0.95rem; transition: all 0.15s;">
+            padding: 10px 20px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem; transition: all 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
             🖨️  Print Analysis
         </button>
-        <p style="font-size: 0.75rem; color: #6B7A99; margin-top: 4px;">
-            ℹ️ Use browser print (Cmd+P / Ctrl+P) or click button for optimized print layout
+        <p style="font-size: 0.75rem; color: #6B7A99; margin-top: 8px;">
+            💡 Click button or use Cmd+P (Mac) / Ctrl+P (Windows) for print layout
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -669,7 +669,7 @@ with tab_report:
                         "Part":          pt.name,
                         "Planned End":   pt.planned_end.strftime("%d %b %Y") if pt.planned_end else "—",
                         "Actual Start":  pt.actual_start.strftime("%d %b %Y") if getattr(pt,"actual_start",None) else "—",
-                        "Adj. Deadline": pt.adjusted_deadline.strftime("%d %b %Y"),
+                        "Original End":  pt.original_deadline.strftime("%d %b %Y"),
                         "Actual Finish": pt.actual_finish.strftime("%d %b %Y") if pt.actual_finish else "⏳ Pending",
                         "Delay (days)":  pt.delay_days if pt.actual_finish else "—",
                         "Marks":         round(pt.marks,1) if pt.actual_finish else "—",
