@@ -240,7 +240,7 @@ with tab_all:
         port_sc     = sum(all_scores)  # Sum all department scores
         kpi_row([
             ("Total Projects",   str(len(st.session_state.projects)), "",               "#1C2536"),
-            ("Portfolio Score",  f"{port_sc:.0f}",  "total",                           marks_color(port_sc / len(all_results))),"
+            ("Portfolio Score",  f"{port_sc:.0f}",  "total",                           marks_color(port_sc / len(all_results))),
             ("Total Delay",      f"{total_delay}d", "finish delay accumulated",         "#EF4444" if total_delay else "#10B981"),
             ("Parts Completed",  f"{all_done}/{all_total}", f"{all_done/all_total*100:.0f}% done", "#F59E0B"),
         ])
