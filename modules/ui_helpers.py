@@ -37,11 +37,28 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     border: 1px solid #374357 !important;
     border-radius: 8px !important;
     margin-bottom: 4px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary {
     background: transparent !important;
     padding: 8px 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    outline: none !important;
+    list-style: none !important;
+}
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary::-webkit-details-marker {
+    display: none !important;
+}
+[data-testid="stSidebar"] div[data-testid="stExpander"] summary::before {
+    content: "▶" !important;
+    font-size: 0.7rem !important;
+    color: #6B7A99 !important;
+    transition: transform 0.2s !important;
+}
+[data-testid="stSidebar"] div[data-testid="stExpander"][open] summary::before {
+    transform: rotate(90deg) !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
     font-size: 0.85rem !important;
@@ -51,15 +68,15 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    max-width: 140px !important;
+    flex: 1 !important;
+    min-width: 0 !important;
 }
 [data-testid="stSidebar"] div[data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
     font-size: 0.85rem !important;
     line-height: 1.2 !important;
 }
-/* This hides the "keyboard_double_arrow_right" and other icon strings leaking into the text */
 [data-testid="stSidebar"] div[data-testid="stExpander"] svg {
-    flex-shrink: 0 !important;
+    display: none !important;
 }
 
 /* FIX SIDEBAR UPLOADER MESS */
@@ -496,6 +513,85 @@ div[data-testid="stExpander"] {
 
 h1, h2, h3 { font-family: 'Sora', sans-serif !important; color: #1C1C1E !important; }
 p, span, div, label { font-family: 'DM Sans', sans-serif !important; }
+
+/* ── Print styles ── */
+@media print {
+    body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        margin: 0 !important;
+        padding: 12mm !important;
+    }
+    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
+    .stButton, .stDownloadButton, button { display: none !important; }
+    
+    /* Hide info messages */
+    .wms-info-box, .stAlert { display: none !important; }
+    
+    /* Optimize hero section */
+    .wms-hero { 
+        background: #FFFFFF !important; 
+        border: 2px solid #000000 !important; 
+        padding: 12pt 16pt !important;
+        page-break-after: avoid !important;
+    }
+    .wms-hero::before { display: none !important; }
+    .wms-hero p { margin: 4pt 0 !important; }
+    
+    /* Layout optimization */
+    .wms-proj-card, .wms-part-card { page-break-inside: avoid !important; }
+    .stTabs [role="tablist"] { display: none !important; }
+    .stTabs [role="tabpanel"] { display: block !important; }
+    .stMetric { page-break-inside: avoid !important; margin: 8pt 0 !important; }
+    
+    /* Charts and tables */
+    .stPlotlyChart { 
+        page-break-inside: avoid !important; 
+        margin: 12pt 0 !important;
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    .stDataFrame { 
+        page-break-inside: avoid !important; 
+        margin: 12pt 0 !important;
+    }
+    .stExpander { page-break-inside: avoid !important; }
+    
+    /* Typography */
+    h1, h2, h3 { 
+        margin: 16pt 0 8pt 0 !important; 
+        page-break-after: avoid !important;
+        color: #000000 !important;
+    }
+    p { margin: 4pt 0 !important; line-height: 1.4 !important; }
+    
+    /* Tables */
+    table { 
+        width: 100% !important; 
+        border-collapse: collapse !important; 
+        font-size: 9pt !important;
+    }
+    th, td { 
+        border: 1px solid #000000 !important; 
+        padding: 6pt !important;
+        text-align: left !important;
+    }
+    th { background: #E0E0E0 !important; font-weight: bold !important; }
+    
+    /* Badges */
+    .badge { 
+        padding: 2pt 4pt !important; 
+        font-size: 8pt !important;
+        border-radius: 3px !important;
+    }
+    
+    /* Remove shadows and effects */
+    * { box-shadow: none !important; }
+    
+    /* Page breaks */
+    .section-label { page-break-after: avoid !important; }
+}
 </style>
 """
 
@@ -703,11 +799,19 @@ def render_part_inputs(
 
         # ── inputs ───────────────────────────────────────────────────────────
         st.markdown(f"##### Data Entry for {part.get('name', f'Part {i+1}')}")
-        c_name, c_pic, c_ps, c_pe, c_as, c_af, c_del = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.2, 0.5])
+        c_name, c_mc, c_desc, c_pic, c_ps, c_pe, c_as, c_af, c_del = st.columns([1.2, 0.8, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5])
         
         part_name = c_name.text_input(
-            "Part name", value=part.get("name", f"Part {i+1}"),
-            key=f"{key_prefix}_p{i}_name", placeholder="e.g. Frame Drawing"
+            "Part Name", value=part.get("name", f"Part {i+1}"),
+            key=f"{key_prefix}_p{i}_name", placeholder="e.g. Frame"
+        )
+        part_mc = c_mc.text_input(
+            "MC", value=part.get("mc", ""),
+            key=f"{key_prefix}_p{i}_mc", placeholder="Code"
+        )
+        part_desc = c_desc.text_input(
+            "Description", value=part.get("description", ""),
+            key=f"{key_prefix}_p{i}_desc", placeholder="e.g. Drawing"
         )
         part_pic = c_pic.text_input(
             "PIC", value=part.get("pic", ""),
@@ -774,6 +878,8 @@ def render_part_inputs(
         st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
         parts_out.append(dict(
             name=part_name,
+            mc=part_mc,
+            description=part_desc,
             pic=part_pic,
             original_deadline=part_deadline, # Save the part-specific deadline
             actual_finish=actual_finish,
