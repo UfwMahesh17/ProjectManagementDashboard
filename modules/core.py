@@ -201,10 +201,11 @@ class DepartmentResult:
 
     @property
     def avg_marks(self) -> float:
+        """Total marks for all finished parts (sum, not average)."""
         finished = [p for p in self.parts if p.actual_finish is not None]
         if not finished:
             return BASE_MARKS
-        return sum(p.marks for p in finished) / len(finished)
+        return sum(p.marks for p in finished)
 
     @property
     def actual_delay_out(self) -> int:
