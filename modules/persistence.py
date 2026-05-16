@@ -116,16 +116,43 @@ def deserialize_projects(raw_bytes: bytes) -> tuple[list[dict], str]:
         departments = p.get("departments", [])
         if not departments or not isinstance(departments, list):
             departments = [d.copy() for d in DEFAULT_DEPARTMENTS]
+        else:
+            # Ensure each department has required fields
+            for i, dept in enumerate(departments):
+                if not isinstance(dept, dict):
+                    continue
+                if "order" not in dept:
+                    dept["order"] = i + 1
+                if "duration" not in dept:
+                    dept["duration"] = 30
+                if "planned_start" not in dept:
+                    dept["planned_start"] = None
+                if "planned_end" not in dept:
+                    dept["planned_end"] = None
         
-        # Reconstruct parts_state if departments were backfilled or empty
+        # Reconstruct parts_state with proper structure
         parts_state = p.get("parts_state", {})
         if not parts_state or not isinstance(parts_state, dict):
+            # Create default parts for each department
             parts_state = {d["name"]: [{"name": "Part 1"}] for d in departments}
         else:
             # Ensure all departments have corresponding parts_state entries
             for dept in departments:
-                if dept["name"] not in parts_state:
-                    parts_state[dept["name"]] = [{"name": "Part 1"}]
+                dept_name = dept.get("name", "")
+                if dept_name not in parts_state:
+                    parts_state[dept_name] = [{"name": "Part 1"}]
+                else:
+                    # Ensure each part has the expected fields
+                    for j, part in enumerate(parts_state[dept_name]):
+                        if not isinstance(part, dict):
+                            parts_state[dept_name][j] = {"name": f"Part {j+1}"}
+                        else:
+                            if "name" not in part:
+                                part["name"] = f"Part {j+1}"
+                            # Ensure date fields are present (can be None)
+                            for date_field in ["actual_start", "actual_finish", "planned_start", "planned_end"]:
+                                if date_field not in part:
+                                    part[date_field] = None
 
         clean.append({
             "code":        p.get("code", "PRJ-001"),
