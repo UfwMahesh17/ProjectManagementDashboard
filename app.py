@@ -80,7 +80,9 @@ with st.sidebar:
     fp = _proj_fingerprint(st.session_state.projects)
     if st.session_state.get("_save_fp") != fp or st.session_state.get("_save_bytes") is None:
         st.session_state["_save_fp"] = fp
+        print("[APP] Serializing projects for save...", flush=True)
         st.session_state["_save_bytes"] = serialize_projects(st.session_state.projects)
+        print(f"[APP] Serialized {len(st.session_state.projects)} project(s)", flush=True)
     save_bytes = st.session_state["_save_bytes"]
 
     st.download_button(
@@ -97,13 +99,17 @@ with st.sidebar:
         help="Select a previously saved .json file",
     )
     if uploaded:
+        print(f"[APP] File uploaded: {uploaded.name}, size: {len(uploaded.getvalue())} bytes", flush=True)
         content = uploaded.getvalue()
         file_hash = hash(content) if content else None
         
         # Check if this is a new file (different from previously loaded file)
         if file_hash and file_hash != st.session_state.get("_last_upload_hash"):
+            print(f"[APP] New file detected (hash changed or first load)", flush=True)
             loaded, feedback = deserialize_projects(content)
             if loaded:
+                print(f"[APP] Deserialization successful: {len(loaded)} project(s) loaded", flush=True)
+                print(f"[APP] First project: code={loaded[0].get('code')}, name={loaded[0].get('name')}", flush=True)
                 # Store the hash to prevent re-loading on every rerun
                 st.session_state["_last_upload_hash"] = file_hash
                 st.session_state.projects = loaded
@@ -111,7 +117,10 @@ with st.sidebar:
                 st.session_state.load_feedback = f"✅ {feedback}"
                 st.rerun()
             else:
+                print(f"[APP] Deserialization failed: {feedback}", flush=True)
                 st.session_state.load_feedback = f"❌ {feedback}"
+        else:
+            print(f"[APP] File not processed (same as last upload or no hash)", flush=True)
     else:
         # Clear upload hash when no file is selected
         st.session_state["_last_upload_hash"] = None
@@ -504,7 +513,7 @@ with tab_analytics:
                       <div style="display:flex;justify-content:center;margin-bottom:10px">{ring}</div>
                       <div style="font-family:'Sora',sans-serif;font-weight:700;font-size:0.92rem;color:#1C1C1E">{dr.name}</div>
                       <div style="font-family:'Sora',sans-serif;font-size:1.8rem;font-weight:800;color:{marks_color(dr.avg_marks)};line-height:1.2;margin:6px 0">
-                        {dr.avg_marks:.0f}<span style="font-size:0.8rem;color:#9CA3AF;font-family:'DM Sans',sans-serif"> /100</span>
+                        {dr.avg_marks:.0f}<span style="font-size:0.8rem;color:#9CA3AF;font-family:'DM Sans',sans-serif"> pts</span>
                       </div>
                       <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap">{delay_badge}{racing_badge}</div>
                     </div>""",
