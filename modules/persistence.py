@@ -1,937 +1,225 @@
 """
-ui_helpers.py — Redesigned UI: clean industrial-precision theme.
-Font: DM Sans + JetBrains Mono. Palette: warm white, deep slate, amber accent.
+persistence.py — Save/load all project state as a portable JSON file.
+
+Strategy: serialize everything to plain JSON (dates as ISO strings,
+DepartmentResult objects reconstructed from their raw inputs).
+The file is downloaded by the user and re-uploaded to restore state.
 """
 
 from __future__ import annotations
-from datetime import date, timedelta
-import streamlit as st
-from modules.core import DELAY_CATEGORIES, EXTERNAL_CATEGORIES, calculate_shifted_deadline
+import json
+import io
+import sys
+from datetime import date, datetime
+from typing import Any
 
-MAIN_CSS = """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Sora:wght@700;800&display=swap');
+from modules.core import DEFAULT_DEPARTMENTS
 
-/* ── Reset & Base ── */
-*, *::before, *::after { box-sizing: border-box; }
+# ── Debug logging ──────────────────────────────────────────────────────────────
+def _log(message: str, level: str = "INFO"):
+    """Print debug logs to console."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] [{level}] persistence.py: {message}", file=sys.stdout, flush=True)
 
-html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-    background: #F5F3EF !important;
-    color: #1C1C1E !important;
-    font-family: 'DM Sans', sans-serif !important;
-}
+# ── Serialization helpers ─────────────────────────────────────────────────────
 
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-    background: #1C2536 !important;
-    border-right: none !important;
-}
-[data-testid="stSidebar"] * { color: #C8D0E0 !important; }
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 { color: #FFFFFF !important; }
+def _to_json_safe(obj: Any) -> Any:
+    """Recursively convert date objects to ISO strings for JSON."""
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: _to_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_json_safe(i) for i in obj]
+    return obj
 
-/* FIX SIDEBAR EXPANDER TEXT OVERLAP & SUMMARY */
-[data-testid="stSidebar"] div[data-testid="stExpander"] {
-    background: #273043 !important;
-    border: 1px solid #374357 !important;
-    border-radius: 8px !important;
-    margin-bottom: 4px !important;
-    overflow: visible !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
-    background: transparent !important;
-    padding: 8px 12px !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 6px !important;
-    outline: none !important;
-    list-style: none !important;
-    cursor: pointer !important;
-    user-select: none !important;
-}
-/* Hide native marker completely */
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary::-webkit-details-marker {
-    display: none !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary::marker {
-    display: none !important;
-}
-/* Hide ONLY SVG elements, NOT text spans */
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary svg {
-    display: none !important;
-}
-/* Custom arrow */
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary::before {
-    content: "▶" !important;
-    font-size: 0.65rem !important;
-    color: #6B7A99 !important;
-    transition: transform 0.2s !important;
-    flex-shrink: 0 !important;
-    width: 12px !important;
-    margin-right: 4px !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"][open] summary::before {
-    transform: rotate(90deg) !important;
-}
-/* Style text content - keep visible */
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary span {
-    font-size: 0.85rem !important;
-    color: #E8ECF4 !important;
-    font-weight: 600 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    flex: 1 !important;
-    min-width: 0 !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"] summary p {
-    font-size: 0.85rem !important;
-    color: #E8ECF4 !important;
-    font-weight: 600 !important;
-    margin: 0 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    flex: 1 !important;
-    min-width: 0 !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"] [data-testid="stMarkdownContainer"] p {
-    font-size: 0.85rem !important;
-    line-height: 1.2 !important;
-}
 
-/* FIX SIDEBAR UPLOADER MESS */
-[data-testid="stSidebar"] [data-testid="stFileUploader"] > label {
-    display: none !important;
-}
-[data-testid="stSidebar"] [data-testid="stFileUploader"] section {
-    padding: 0 !important;
-    border: none !important;
-    background: transparent !important;
-    min-height: unset !important;
-}
-[data-testid="stSidebar"] [data-testid="stFileUploader"] section > div {
-    display: none !important;
-}
-/* Hide the 'Drag and drop file here' text and 'Limit 200MB' bits that cause overlap */
-[data-testid="stSidebar"] [data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] {
-    display: none !important;
-}
-/* Style the browse button specifically for sidebar */
-[data-testid="stSidebar"] [data-testid="stFileUploader"] button {
-    width: 100% !important;
-    background: #273043 !important;
-    color: #E8ECF4 !important;
-    border: 1px solid #374357 !important;
-}
+def _from_json_safe(obj: Any) -> Any:
+    """
+    Recursively restore ISO date strings back to date objects.
+    Only converts strings that look like dates (YYYY-MM-DD).
+    """
+    if isinstance(obj, str):
+        try:
+            # Flexible date parsing
+            if "-" in obj and len(obj) >= 10:
+                # Try full isoformat first
+                return datetime.fromisoformat(obj).date() if len(obj) > 10 else date.fromisoformat(obj[:10])
+        except Exception:
+            pass
+        return obj
+    if isinstance(obj, dict):
+        return {k: _from_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_from_json_safe(i) for i in obj]
+    return obj
 
-[data-testid="stSidebar"] .stTextInput input,
-[data-testid="stSidebar"] .stNumberInput input,
-[data-testid="stSidebar"] .stDateInput input {
-    background: #273043 !important;
-    border: 1px solid #374357 !important;
-    color: #E8ECF4 !important;
-    border-radius: 8px !important;
-    font-family: 'DM Sans', sans-serif !important;
-}
-[data-testid="stSidebar"] .stSelectbox > div > div {
-    background: #273043 !important;
-    border: 1px solid #374357 !important;
-    color: #E8ECF4 !important;
-    border-radius: 8px !important;
-}
-[data-testid="stSidebar"] hr { border-color: #374357 !important; }
-[data-testid="stSidebar"] .stButton > button {
-    background: #273043 !important;
-    color: #E8ECF4 !important;
-    border: 1px solid #374357 !important;
-    border-radius: 8px !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-weight: 500 !important;
-    transition: all 0.15s !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: #F59E0B !important;
-    color: #1C1C1E !important;
-    border-color: #F59E0B !important;
-}
-[data-testid="stSidebar"] .stDownloadButton > button {
-    background: #F59E0B !important;
-    color: #1C1C1E !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-}
-[data-testid="stSidebar"] div[data-testid="stExpander"] {
-    background: #273043 !important;
-    border: 1px solid #374357 !important;
-    border-radius: 10px !important;
-}
-[data-testid="stSidebarNav"] { display: none !important; }
 
-/* ── Top nav tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    background: #FFFFFF !important;
-    border-bottom: 2px solid #E8E4DC !important;
-    padding: 0 4px !important;
-    gap: 2px !important;
-    box-shadow: 0 1px 0 #E8E4DC;
-}
-.stTabs [data-baseweb="tab"] {
-    color: #6B7280 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-weight: 500 !important;
-    font-size: 0.88rem !important;
-    padding: 12px 20px !important;
-    border-radius: 6px 6px 0 0 !important;
-    border: none !important;
-    transition: all 0.15s !important;
-}
-.stTabs [data-baseweb="tab"]:hover { background: #F5F3EF !important; color: #1C1C1E !important; }
-.stTabs [aria-selected="true"] {
-    color: #1C1C1E !important;
-    background: #F5F3EF !important;
-    font-weight: 700 !important;
-    border-bottom: 2px solid #F59E0B !important;
-}
+# ── Public API ────────────────────────────────────────────────────────────────
 
-/* ── Main content inputs ── */
-.stTextInput label, .stNumberInput label, .stDateInput label, .stTextArea label {
-    color: #1C1C1E !important;
-    font-weight: 600 !important;
-    display: block !important;
-    visibility: visible !important;
-}
-.stTextInput input, .stNumberInput input, .stDateInput input, .stTextArea textarea {
-    background: #FFFFFF !important;
-    border: 1.5px solid #E0DBD1 !important;
-    border-radius: 8px !important;
-    color: #1C1C1E !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 0.9rem !important;
-    transition: border-color 0.15s, box-shadow 0.15s !important;
-}
-.stTextInput input:focus, .stDateInput input:focus, .stTextArea textarea:focus,
-.stNumberInput input:focus {
-    border-color: #F59E0B !important;
-    box-shadow: 0 0 0 3px rgba(245,158,11,0.15) !important;
-    outline: none !important;
-}
-.stSelectbox > div > div {
-    background: #FFFFFF !important;
-    border: 1.5px solid #E0DBD1 !important;
-    border-radius: 8px !important;
-}
+def serialize_projects(projects: list[dict]) -> bytes:
+    """
+    Convert the full projects list (from session_state) into
+    a downloadable JSON bytes payload.
 
-/* ── Main buttons ── */
-.stButton > button {
-    background: #1C2536 !important;
-    color: #FFFFFF !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-weight: 600 !important;
-    padding: 0.5rem 1.2rem !important;
-    transition: all 0.15s !important;
-}
-.stButton > button:hover {
-    background: #F59E0B !important;
-    color: #1C1C1E !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 12px rgba(245,158,11,0.3) !important;
-}
-.stDownloadButton > button {
-    background: #FFFFFF !important;
-    color: #1C2536 !important;
-    border: 2px solid #1C2536 !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-}
-.stDownloadButton > button:hover {
-    background: #1C2536 !important;
-    color: #FFFFFF !important;
-}
-
-/* ── Expanders ── */
-div[data-testid="stExpander"] {
-    background: #FFFFFF !important;
-    border: 1.5px solid #E0DBD1 !important;
-    border-radius: 10px !important;
-    overflow: hidden !important;
-}
-
-/* ── Alerts ── */
-.stAlert { border-radius: 10px !important; font-family: 'DM Sans', sans-serif !important; }
-
-/* ── Dataframes ── */
-.stDataFrame { border-radius: 10px !important; overflow: hidden !important; }
-[data-testid="stDataFrameResizable"] { border-radius: 10px !important; }
-
-/* ── Custom components ── */
-
-.wms-hero {
-    background: linear-gradient(135deg, #1C2536 0%, #2D3A52 100%);
-    border-radius: 16px;
-    padding: 28px 32px 24px;
-    margin-bottom: 24px;
-    position: relative;
-    overflow: hidden;
-    color: white;
-}
-.wms-hero::before {
-    content: '';
-    position: absolute;
-    top: -40px; right: -40px;
-    width: 200px; height: 200px;
-    background: radial-gradient(circle, rgba(245,158,11,0.2) 0%, transparent 70%);
-    border-radius: 50%;
-}
-.wms-hero::after {
-    content: '';
-    position: absolute;
-    bottom: -60px; left: 20%;
-    width: 300px; height: 120px;
-    background: rgba(245,158,11,0.05);
-    border-radius: 50%;
-}
-.wms-hero-title {
-    font-family: 'Sora', sans-serif !important;
-    font-size: 1.7rem !important;
-    font-weight: 800 !important;
-    color: #FFFFFF !important;
-    margin: 0 0 6px !important;
-    line-height: 1.2 !important;
-}
-.wms-hero-sub { 
-    color: rgba(255,255,255,0.7) !important; 
-    font-size: 0.95rem !important; 
-    margin: 0 !important; 
-    line-height: 1.4 !important;
-}
-.wms-hero-accent { color: #F59E0B !important; }
-
-.wms-kpi-row { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
-.wms-kpi {
-    flex: 1; min-width: 130px;
-    background: #FFFFFF;
-    border: 1.5px solid #E0DBD1;
-    border-radius: 12px;
-    padding: 16px 18px;
-    position: relative;
-    overflow: hidden;
-    transition: box-shadow 0.2s, transform 0.2s;
-}
-.wms-kpi:hover { box-shadow: 0 6px 24px rgba(28,37,54,0.10); transform: translateY(-2px); }
-.wms-kpi-accent {
-    position: absolute; top: 0; left: 0;
-    width: 4px; height: 100%;
-    border-radius: 12px 0 0 12px;
-}
-.wms-kpi-label {
-    font-size: 0.68rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    color: #9CA3AF; margin-bottom: 8px; padding-left: 10px;
-}
-.wms-kpi-value {
-    font-family: 'Sora', sans-serif;
-    font-size: 2rem; font-weight: 800;
-    line-height: 1; padding-left: 10px;
-}
-.wms-kpi-sub { font-size: 0.72rem; color: #9CA3AF; padding-left: 10px; margin-top: 4px; }
-
-.wms-dept-banner {
-    background: #FFFFFF;
-    border: 1.5px solid #E0DBD1;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-.wms-dept-icon {
-    width: 44px; height: 44px;
-    background: #1C2536;
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem; flex-shrink: 0;
-}
-.wms-dept-name { font-family: 'Sora', sans-serif; font-size: 1.05rem; font-weight: 700; color: #1C1C1E; }
-.wms-dept-meta { font-size: 0.78rem; color: #9CA3AF; margin-top: 2px; }
-.wms-dept-prog-wrap { background: #F0EDE8; border-radius: 99px; height: 6px; overflow: hidden; margin-top: 6px; max-width: 200px; }
-.wms-dept-prog-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
-
-.wms-part-card {
-    background: #FFFFFF;
-    border: 1.5px solid #E0DBD1;
-    border-radius: 10px;
-    padding: 16px 18px 12px;
-    margin-bottom: 10px;
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-.wms-part-card:hover { border-color: #F59E0B; box-shadow: 0 4px 16px rgba(245,158,11,0.08); }
-.wms-part-card.late  { border-left: 4px solid #EF4444 !important; }
-.wms-part-card.ontime { border-left: 4px solid #10B981 !important; }
-.wms-part-card.progress { border-left: 4px solid #F59E0B !important; }
-.wms-part-card.empty { border-left: 4px solid #D1D5DB !important; }
-
-.wms-part-header {
-    display: flex; justify-content: space-between;
-    align-items: center; margin-bottom: 12px;
-}
-.wms-part-num {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem; font-weight: 500;
-    color: #9CA3AF; text-transform: uppercase; letter-spacing: 1px;
-}
-
-.badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 99px;
-    font-size: 0.72rem; font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-}
-.badge-green  { background: #D1FAE5; color: #065F46; }
-.badge-red    { background: #FEE2E2; color: #991B1B; }
-.badge-amber  { background: #FEF3C7; color: #92400E; }
-.badge-blue   { background: #DBEAFE; color: #1E40AF; }
-.badge-slate  { background: #E2E8F0; color: #475569; }
-.badge-purple { background: #EDE9FE; color: #5B21B6; }
-
-.wms-pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 16px; }
-.wms-pill {
-    background: #FFFFFF;
-    border: 1px solid #E0DBD1;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 0.76rem; color: #374151;
-}
-.wms-pill strong { color: #1C1C1E; font-weight: 600; }
-
-.wms-section-label {
-    font-size: 0.7rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.9px;
-    color: #9CA3AF; margin: 20px 0 10px;
-    display: flex; align-items: center; gap: 8px;
-}
-.wms-section-label::after { content: ''; flex: 1; height: 1px; background: #E8E4DC; }
-
-.wms-step-row { display: flex; align-items: flex-start; gap: 0; margin: 16px 0 20px; overflow-x: auto; padding-bottom: 4px; }
-.wms-step { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 80px; }
-.wms-step-dot {
-    width: 28px; height: 28px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.72rem; font-weight: 700; flex-shrink: 0;
-    position: relative; z-index: 1;
-}
-.wms-step-dot.done   { background: #F59E0B; color: #1C1C1E; }
-.wms-step-dot.active { background: #1C2536; color: #FFFFFF; }
-.wms-step-dot.todo   { background: #F0EDE8; color: #9CA3AF; border: 2px solid #E0DBD1; }
-.wms-step-label { font-size: 0.62rem; color: #9CA3AF; margin-top: 5px; text-align: center; max-width: 72px; }
-.wms-step-label.done  { color: #F59E0B; font-weight: 600; }
-.wms-step-label.active { color: #1C2536; font-weight: 700; }
-.wms-step-line { flex: 1; height: 2px; background: #E0DBD1; margin-top: 14px; min-width: 16px; }
-.wms-step-line.done { background: #F59E0B; }
-
-.wms-proj-card {
-    background: #FFFFFF;
-    border: 1.5px solid #E0DBD1;
-    border-radius: 14px;
-    padding: 20px 22px;
-    transition: all 0.2s;
-    height: 100%;
-}
-.wms-proj-card:hover { border-color: #F59E0B; box-shadow: 0 8px 30px rgba(28,37,54,0.08); transform: translateY(-2px); }
-
-.wms-info-box {
-    background: #EFF6FF;
-    border: 1px solid #BFDBFE;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 0.84rem;
-    color: #1E40AF;
-    margin-bottom: 16px;
-}
-.wms-warn-box {
-    background: #FFFBEB;
-    border: 1px solid #FDE68A;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 0.84rem;
-    color: #92400E;
-    margin-bottom: 10px;
-}
-.wms-error-box {
-    background: #FEF2F2;
-    border: 1px solid #FECACA;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 0.84rem;
-    color: #991B1B;
-    margin-bottom: 10px;
-}
-.wms-success-box {
-    background: #F0FDF4;
-    border: 1px solid #BBF7D0;
-    border-radius: 10px;
-    padding: 14px 18px;
-    font-size: 0.84rem;
-    color: #065F46;
-    margin-bottom: 10px;
-}
-
-.wms-report-box {
-    background: #FFFFFF;
-    border: 1.5px solid #E0DBD1;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 16px;
-}
-.wms-report-sheet {
-    display: flex; align-items: flex-start; gap: 12px;
-    padding: 10px 0; border-bottom: 1px solid #F0EDE8;
-}
-.wms-report-sheet:last-child { border-bottom: none; }
-.wms-report-icon {
-    width: 36px; height: 36px;
-    background: #F5F3EF; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1rem; flex-shrink: 0;
-}
-
-/* Sidebar branding block */
-.sb-brand {
-    padding: 16px 0 12px;
-    border-bottom: 1px solid #374357;
-    margin-bottom: 12px;
-}
-.sb-brand-name {
-    font-family: 'Sora', sans-serif;
-    font-size: 1.1rem; font-weight: 800;
-    color: #FFFFFF !important;
-}
-.sb-brand-sub { font-size: 0.72rem; color: #6B7A99 !important; margin-top: 2px; }
-
-/* Hide redundant sidebar element strings and check for icon leakage */
-[data-testid="stSidebar"] [data-testid="stExpander"] summary {
-    overflow: hidden !important;
-}
-[data-testid="stSidebar"] [data-testid="stExpander"] summary span[data-testid="stMarkdownContainer"] {
-    display: none !important;
-}
-[data-testid="stSidebar"] [data-testid="stExpander"] summary p {
-    display: block !important;
-}
-
-.sb-section-label {
-    font-size: 0.65rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    color: #6B7A99 !important;
-    margin: 12px 0 6px;
-    display: flex; align-items: center; gap: 6px;
-}
-.sb-section-label::after { content: ''; flex: 1; height: 1px; background: #374357; }
-
-h1, h2, h3 { font-family: 'Sora', sans-serif !important; color: #1C1C1E !important; }
-p, span, div, label { font-family: 'DM Sans', sans-serif !important; }
-
-/* ── Print styles ── */
-@media print {
-    body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-        background: #FFFFFF !important;
-        color: #000000 !important;
-        margin: 0 !important;
-        padding: 12mm !important;
-    }
-    [data-testid="stSidebar"] { display: none !important; }
-    [data-testid="stToolbar"] { display: none !important; }
-    .stButton, .stDownloadButton, button { display: none !important; }
+    Only raw input data is saved — DepartmentResult objects (analysis
+    results) are NOT saved because they can be perfectly reconstructed
+    by clicking Run Analysis. This keeps the file small and avoids
+    serializing dataclass internals.
+    """
+    _log(f"=== SAVE START ===", "INFO")
+    _log(f"Saving {len(projects)} project(s)", "INFO")
     
-    /* Hide info messages */
-    .wms-info-box, .stAlert { display: none !important; }
-    
-    /* Optimize hero section */
-    .wms-hero { 
-        background: #FFFFFF !important; 
-        border: 2px solid #000000 !important; 
-        padding: 12pt 16pt !important;
-        page-break-after: avoid !important;
-    }
-    .wms-hero::before { display: none !important; }
-    .wms-hero p { margin: 4pt 0 !important; }
-    
-    /* Layout optimization */
-    .wms-proj-card, .wms-part-card { page-break-inside: avoid !important; }
-    .stTabs [role="tablist"] { display: none !important; }
-    .stTabs [role="tabpanel"] { display: block !important; }
-    .stMetric { page-break-inside: avoid !important; margin: 8pt 0 !important; }
-    
-    /* Charts and tables */
-    .stPlotlyChart { 
-        page-break-inside: avoid !important; 
-        margin: 12pt 0 !important;
-        max-width: 100% !important;
-        height: auto !important;
-    }
-    .stDataFrame { 
-        page-break-inside: avoid !important; 
-        margin: 12pt 0 !important;
-    }
-    .stExpander { page-break-inside: avoid !important; }
-    
-    /* Typography */
-    h1, h2, h3 { 
-        margin: 16pt 0 8pt 0 !important; 
-        page-break-after: avoid !important;
-        color: #000000 !important;
-    }
-    p { margin: 4pt 0 !important; line-height: 1.4 !important; }
-    
-    /* Tables */
-    table { 
-        width: 100% !important; 
-        border-collapse: collapse !important; 
-        font-size: 9pt !important;
-    }
-    th, td { 
-        border: 1px solid #000000 !important; 
-        padding: 6pt !important;
-        text-align: left !important;
-    }
-    th { background: #E0E0E0 !important; font-weight: bold !important; }
-    
-    /* Badges */
-    .badge { 
-        padding: 2pt 4pt !important; 
-        font-size: 8pt !important;
-        border-radius: 3px !important;
+    saveable = []
+    for idx, p in enumerate(projects):
+        _log(f"  Project {idx}: code={p.get('code')}, name={p.get('name')}, has_name_key={('name' in p)}", "DEBUG")
+        
+        project_data = {
+            "code":        p.get("code", ""),
+            "name":        p.get("name", ""),
+            "start":       p.get("start"),
+            "description": p.get("description", ""),
+            "departments": p.get("departments", []),
+            "parts_state": p.get("parts_state", {}),
+            # results intentionally omitted — user clicks Run Analysis to regenerate
+        }
+        
+        # Log what's actually being saved
+        _log(f"    → Saved: code={project_data['code']}, name={project_data['name']}, depts={len(project_data['departments'])}", "DEBUG")
+        
+        # Count parts
+        total_parts = sum(len(project_data['parts_state'].get(d['name'], [])) for d in project_data['departments'])
+        _log(f"    → Parts: {total_parts} total across all departments", "DEBUG")
+        
+        saveable.append(project_data)
+
+    payload = {
+        "version":   "1.0",
+        "saved_at":  datetime.now().isoformat(),
+        "projects":  _to_json_safe(saveable),
     }
     
-    /* Remove shadows and effects */
-    * { box-shadow: none !important; }
+    json_str = json.dumps(payload, indent=2, ensure_ascii=False)
+    _log(f"JSON size: {len(json_str)} bytes", "INFO")
+    _log(f"First 500 chars of JSON:\n{json_str[:500]}", "DEBUG")
+    _log(f"=== SAVE COMPLETE ===", "INFO")
     
-    /* Page breaks */
-    .section-label { page-break-after: avoid !important; }
-}
-</style>
-"""
+    return json_str.encode("utf-8")
 
 
-def inject_css():
-    st.markdown(MAIN_CSS, unsafe_allow_html=True)
-
-
-# ── Reusable HTML helpers ─────────────────────────────────────────────────────
-
-def hero(title: str, subtitle: str, accent: str = ""):
-    subtitle_html = f'<p class="wms-hero-sub">{subtitle}</p>'
-    title_html = f'<div class="wms-hero-title">{title}'
-    if accent:
-        title_html += f' <span class="wms-hero-accent">{accent}</span>'
-    title_html += '</div>'
+def deserialize_projects(raw_bytes: bytes) -> tuple[list[dict], str]:
+    """
+    Parse a previously saved JSON file back into a projects list.
+    Returns (projects, error_message). error_message is "" on success.
+    """
+    _log(f"=== LOAD START ===", "INFO")
+    _log(f"Received {len(raw_bytes)} bytes to load", "INFO")
     
-    st.markdown(
-        f'<div class="wms-hero">{title_html}{subtitle_html}</div>',
-        unsafe_allow_html=True,
-    )
+    try:
+        payload = json.loads(raw_bytes.decode("utf-8"))
+        _log(f"JSON parsed successfully", "INFO")
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        _log(f"JSON decode error: {e}", "ERROR")
+        return [], f"Invalid file format: {e}"
 
+    if "projects" not in payload:
+        _log(f"Missing 'projects' key in payload", "ERROR")
+        _log(f"Available keys: {list(payload.keys())}", "DEBUG")
+        return [], "File is missing the 'projects' key. Is this a valid Adwik WMS save file?"
 
-def kpi_row(items: list[tuple]):
-    """items = [(label, value, sub, color), ...]"""
-    cards = ""
-    for label, value, sub, color in items:
-        cards += f"""<div class="wms-kpi">
-          <div class="wms-kpi-accent" style="background:{color}"></div>
-          <div class="wms-kpi-label">{label}</div>
-          <div class="wms-kpi-value" style="color:{color}">{value}</div>
-          {"<div class='wms-kpi-sub'>" + sub + "</div>" if sub else ""}
-        </div>"""
-    st.markdown(f'<div class="wms-kpi-row">{cards}</div>', unsafe_allow_html=True)
+    _log(f"Found {len(payload['projects'])} project(s) in JSON", "INFO")
+    _log(f"First project in JSON: {payload['projects'][0] if payload['projects'] else 'EMPTY'}", "DEBUG")
 
+    try:
+        projects = _from_json_safe(payload["projects"])
+    except Exception as e:
+        _log(f"Failed to parse project data: {e}", "ERROR")
+        return [], f"Failed to parse project data: {e}"
 
-def kpi_card(label, value, sub="", color="#1C2536"):
-    st.markdown(
-        f"""<div class="wms-kpi">
-          <div class="wms-kpi-accent" style="background:{color}"></div>
-          <div class="wms-kpi-label">{label}</div>
-          <div class="wms-kpi-value" style="color:{color}">{value}</div>
-          {"<div class='wms-kpi-sub'>" + sub + "</div>" if sub else ""}
-        </div>""",
-        unsafe_allow_html=True,
-    )
+    # Validate & backfill any missing keys (forward-compatibility)
+    clean = []
+    for p_idx, p in enumerate(projects):
+        _log(f"Processing project {p_idx}...", "DEBUG")
+        
+        # Ensure we don't crash if p is not a dict
+        if not isinstance(p, dict):
+            _log(f"  ⚠ Project is not a dict, skipping", "WARN")
+            continue
+        
+        _log(f"  Before processing: code={p.get('code')}, name={p.get('name')}, has_name={('name' in p)}", "DEBUG")
+            
+        # Ensure dates are actually date objects, backfill with current if missing
+        project_start = p.get("start")
+        if isinstance(project_start, str):
+            try: project_start = date.fromisoformat(project_start[:10])
+            except: project_start = date.today()
+        elif not isinstance(project_start, date):
+            project_start = date.today()
 
-
-def metric_card(label, value, color="#1C2536"):
-    kpi_card(label, value, color=color)
-
-
-def dept_header(name: str, duration: int, completion_pct: float = 0, pred_delay: int = 0):
-    icons = {"Design": "✏️", "Purchase": "🛒", "Manufacturing": "🔩",
-             "Assembly": "🔧", "Testing": "🧪"}
-    icon = icons.get(name, "📦")
-    bar_color = "#10B981" if completion_pct == 100 else "#F59E0B" if completion_pct > 0 else "#D1D5DB"
-    # Delay badge is disabled for department headers as we are in manual mode
-    st.markdown(
-        f"""<div class="wms-dept-banner">
-          <div class="wms-dept-icon">{icon}</div>
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="wms-dept-name">{name}</span>
-            </div>
-            <div class="wms-dept-meta">{duration} days &nbsp;·&nbsp; {completion_pct:.0f}% complete</div>
-            <div class="wms-dept-prog-wrap">
-              <div class="wms-dept-prog-fill" style="width:{completion_pct}%;background:{bar_color}"></div>
-            </div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-family:'Sora',sans-serif;font-size:1.6rem;font-weight:800;color:{bar_color};line-height:1">{completion_pct:.0f}<span style="font-size:0.8rem;color:#9CA3AF">%</span></div>
-          </div>
-        </div>""",
-        unsafe_allow_html=True,
-    )
-
-
-def section_label(text: str):
-    st.markdown(f'<div class="wms-section-label">{text}</div>', unsafe_allow_html=True)
-
-
-# alias
-def section_heading(text: str):
-    section_label(text)
-
-
-def pill_row(items: list[tuple]):
-    """items = [(label, value), ...]"""
-    html = "".join(f'<div class="wms-pill"><strong>{k}:</strong> {v}</div>' for k, v in items)
-    st.markdown(f'<div class="wms-pill-row">{html}</div>', unsafe_allow_html=True)
-
-
-def info_pills(items):
-    pill_row(items)
-
-
-def step_indicator(steps: list[str], current: int):
-    parts = []
-    for i, label in enumerate(steps):
-        if i > 0:
-            line_cls = "wms-step-line done" if i <= current else "wms-step-line"
-            parts.append(f'<div class="{line_cls}"></div>')
-        if i < current:
-            dot_cls, lbl_cls, sym = "done", "done", "✓"
-        elif i == current:
-            dot_cls, lbl_cls, sym = "active", "active", str(i+1)
+        # Backfill empty departments with defaults
+        departments = p.get("departments", [])
+        if not departments or not isinstance(departments, list):
+            _log(f"  ⚠ No departments found, using defaults", "WARN")
+            departments = [d.copy() for d in DEFAULT_DEPARTMENTS]
         else:
-            dot_cls, lbl_cls, sym = "todo", "", str(i+1)
-        parts.append(
-            f'<div class="wms-step">'
-            f'<div class="wms-step-dot {dot_cls}">{sym}</div>'
-            f'<div class="wms-step-label {lbl_cls}">{label}</div>'
-            f'</div>'
-        )
-    st.markdown(f'<div class="wms-step-row">{"".join(parts)}</div>', unsafe_allow_html=True)
-
-
-def page_hero(project_code, start, dept_count, total_days):
-    hero(
-        "Project Detail",
-        f"{dept_count} departments · {total_days} days total · Started {start.strftime('%d %b %Y')}",
-        accent=project_code,
-    )
-
-
-def progress_bar(pct, color="#F59E0B"):
-    st.markdown(
-        f'<div style="background:#F0EDE8;border-radius:99px;height:8px;overflow:hidden;margin:6px 0">'
-        f'<div style="width:{min(pct,100):.1f}%;height:100%;background:{color};border-radius:99px;transition:width 0.4s"></div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-
-def completion_ring_html(pct: float, color: str = "#F59E0B", size: int = 72) -> str:
-    r = 26; cx = cy = size // 2
-    circ = 2 * 3.14159 * r
-    dash = circ * pct / 100
-    return (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">'
-        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="#F0EDE8" stroke-width="7"/>'
-        f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" stroke-width="7"'
-        f' stroke-dasharray="{dash:.1f} {circ:.1f}" stroke-linecap="round"'
-        f' transform="rotate(-90 {cx} {cy})"/>'
-        f'<text x="{cx}" y="{cy+5}" text-anchor="middle" font-size="12" font-weight="700"'
-        f' fill="{color}" font-family="Sora,sans-serif">{pct:.0f}%</text>'
-        f'</svg>'
-    )
-
-
-def badge(text: str, kind: str = "slate"):
-    st.markdown(f'<span class="badge badge-{kind}">{text}</span>', unsafe_allow_html=True)
-
-
-def marks_color(marks: float) -> str:
-    if marks >= 80: return "#10B981"
-    if marks >= 50: return "#F59E0B"
-    return "#EF4444"
-
-
-# ── Part inputs ───────────────────────────────────────────────────────────────
-
-def render_part_inputs(
-    dept_name, dept_duration, dept_original_end,
-    predecessor_delay, parts_state, key_prefix,
-):
-    # DEADLINE REFINED: Every part has its own manual deadline (Planned end)
-    # The department headers will still show the department planned window for context
-    parts_out    = []
-    to_delete    = None
-
-    for i, part in enumerate(parts_state):
-        af         = part.get("actual_finish")
-        a_start    = part.get("actual_start")
-        p_start    = part.get("planned_start")
-        p_end      = part.get("planned_end")
+            _log(f"  Loaded {len(departments)} departments", "DEBUG")
+            # Ensure each department has required fields
+            for i, dept in enumerate(departments):
+                if not isinstance(dept, dict):
+                    continue
+                if "order" not in dept:
+                    dept["order"] = i + 1
+                if "duration" not in dept:
+                    dept["duration"] = 30
+                if "planned_start" not in dept:
+                    dept["planned_start"] = None
+                if "planned_end" not in dept:
+                    dept["planned_end"] = None
         
-        # SCREENSHOT FIX: DELAY IS CALCULATED B/W PLANNED END AND ACTUAL FINISH
-        # Use planned_end if available, otherwise fallback to dept default
-        part_deadline = p_end if p_end else dept_original_end
+        # Reconstruct parts_state with proper structure
+        parts_state = p.get("parts_state", {})
+        if not parts_state or not isinstance(parts_state, dict):
+            _log(f"  ⚠ No parts_state found, creating defaults", "WARN")
+            # Create default parts for each department
+            parts_state = {d["name"]: [{"name": "Part 1"}] for d in departments}
+        else:
+            _log(f"  Loaded parts_state with {len(parts_state)} department(s)", "DEBUG")
+            # Ensure all departments have corresponding parts_state entries
+            for dept in departments:
+                dept_name = dept.get("name", "")
+                if dept_name not in parts_state:
+                    _log(f"    ⚠ Department '{dept_name}' missing in parts_state, adding default", "WARN")
+                    parts_state[dept_name] = [{"name": "Part 1"}]
+                else:
+                    part_count = len(parts_state[dept_name])
+                    _log(f"    ✓ Department '{dept_name}': {part_count} part(s)", "DEBUG")
+                    
+                    # Ensure each part has the expected fields
+                    for j, part in enumerate(parts_state[dept_name]):
+                        if not isinstance(part, dict):
+                            parts_state[dept_name][j] = {"name": f"Part {j+1}"}
+                        else:
+                            if "name" not in part:
+                                part["name"] = f"Part {j+1}"
+                            # Ensure date fields are present (can be None)
+                            for date_field in ["actual_start", "actual_finish", "planned_start", "planned_end"]:
+                                if date_field not in part:
+                                    part[date_field] = None
+
+        cleaned_project = {
+            "code":        p.get("code", "PRJ-001"),
+            "name":        p.get("name", p.get("code", "New Project")),
+            "start":       project_start,
+            "description": p.get("description", ""),
+            "departments": departments,
+            "parts_state": parts_state,
+            "results":     {},   # always start fresh — user re-runs analysis
+        }
         
-        on_time    = af and af <= part_deadline
-        late       = af and af > part_deadline
-        in_prog    = a_start and not af
-        card_class = "ontime" if on_time else "late" if late else "progress" if in_prog else "empty"
+        _log(f"  After processing: code={cleaned_project['code']}, name={cleaned_project['name']}", "DEBUG")
+        clean.append(cleaned_project)
 
-        if on_time:   status_html = '<span class="badge badge-green">✓ On Time</span>'
-        elif late:    status_html = f'<span class="badge badge-red">⚠ Late {(af - part_deadline).days}d</span>'
-        elif in_prog: status_html = '<span class="badge badge-amber">⏳ In Progress</span>'
-        else:         status_html = '<span class="badge badge-slate">Not Started</span>'
-
-        st.markdown(
-            f'<div class="wms-part-card {card_class}">'
-            f'<div class="wms-part-header">'
-            f'<span class="wms-part-num">Part {i+1}</span>'
-            f'{status_html}'
-            f'</div>'
-            f'<div style="font-size:0.75rem; color:#6B7280; margin-top:-8px; margin-bottom:8px;">'
-            f'Target: {part_deadline.strftime("%d %b %Y")}'
-            f'</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-        # ── inputs ───────────────────────────────────────────────────────────
-        st.markdown(f"##### Data Entry for {part.get('name', f'Part {i+1}')}")
-        c_name, c_mc, c_desc, c_pic, c_ps, c_pe, c_as, c_af, c_del = st.columns([1.2, 0.8, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5])
-        
-        part_name = c_name.text_input(
-            "Part Name", value=part.get("name", f"Part {i+1}"),
-            key=f"{key_prefix}_p{i}_name", placeholder="e.g. Frame"
-        )
-        part_mc = c_mc.text_input(
-            "MC", value=part.get("mc", ""),
-            key=f"{key_prefix}_p{i}_mc", placeholder="Code"
-        )
-        part_desc = c_desc.text_input(
-            "Description", value=part.get("description", ""),
-            key=f"{key_prefix}_p{i}_desc", placeholder="e.g. Drawing"
-        )
-        part_pic = c_pic.text_input(
-            "PIC", value=part.get("pic", ""),
-            key=f"{key_prefix}_p{i}_pic", placeholder="Name"
-        )
-        
-        # ── Date inputs: Only save if user explicitly set them ────────────────
-        # Store original values to detect if user changed them
-        orig_ps = part.get("planned_start")
-        orig_pe = part.get("planned_end")
-        orig_as = part.get("actual_start")
-        orig_af = part.get("actual_finish")
-        
-        # Use dept_original_end as default to show meaningful date, not today
-        default_date = dept_original_end if not orig_ps else orig_ps
-        
-        ps_input = c_ps.date_input("Planned start", value=orig_ps or default_date, key=f"{key_prefix}_p{i}_ps")
-        pe_input = c_pe.date_input("Planned end",   value=orig_pe or default_date,   key=f"{key_prefix}_p{i}_pe")
-        as_input = c_as.date_input("Actual start",  value=orig_as or date.today(),  key=f"{key_prefix}_p{i}_as")
-        af_input = c_af.date_input("Actual finish", value=orig_af or date.today(), key=f"{key_prefix}_p{i}_af")
-        
-        # ── Convert back to None if user didn't change from original ──────────
-        planned_start = ps_input if orig_ps else (ps_input if ps_input != default_date else None)
-        planned_end   = pe_input if orig_pe else (pe_input if pe_input != default_date else None)
-        actual_start  = as_input if orig_as else (as_input if as_input != date.today() else None)
-        actual_finish = af_input if orig_af else (af_input if af_input != date.today() else None)
-        
-        c_del.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        if c_del.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
-            to_delete = i
-
-        # ── duration and delay labels ───────────────────────────────────────
-        plan_dur = (planned_end - planned_start).days + 1 if planned_start and planned_end else 0
-        act_dur  = (actual_finish - actual_start).days + 1 if actual_start and actual_finish else 0
-        
-        col1, col2 = st.columns(2)
-        if plan_dur > 0:
-            col1.markdown(f"🗓️ **Planned Duration:** {plan_dur} days")
-        if act_dur > 0:
-            col2.markdown(f"⏱️ **Actual Duration:** {act_dur} days")
-
-        # ── finish-delay logging ──────────────────────────────────────────────
-        # Use a secondary state to ensure values stick between reruns
-        delay_cat = part.get("delay_category")
-        delay_reason = part.get("delay_reason")
-        
-        # SCREENSHOT FIX: Ensure planned_end exists before comparison
-        # If planned_end is None, we use the part_deadline (fallback to dept end)
-        effective_deadline = planned_end if planned_end else part_deadline
-
-        if actual_finish and effective_deadline and actual_finish > effective_deadline:
-            overdue = (actual_finish - effective_deadline).days
-            penalty = overdue * 0.5
-            st.markdown(
-                f'<div class="wms-error-box">⚠️ <strong>{part_name}</strong> is '
-                f'<strong>{overdue} day(s) late</strong> past its Planned End '
-                f'({effective_deadline.strftime("%d %b %Y")}). Please log the delay below.</div>',
-                unsafe_allow_html=True,
-            )
-            dc1, dc2 = st.columns([2, 3])
-            delay_cat = dc1.selectbox(
-                "Delay category *", options=DELAY_CATEGORIES,
-                index=DELAY_CATEGORIES.index(part.get("delay_category")) if part.get("delay_category") in DELAY_CATEGORIES else 0,
-                key=f"{key_prefix}_p{i}_cat",
-            )
-            delay_reason = dc2.text_area(
-                "Root cause explanation *",
-                value=part.get("delay_reason") or "",
-                placeholder="What caused this delay?",
-                key=f"{key_prefix}_p{i}_reason", height=80,
-            )
-            if not delay_reason:
-                st.caption("⚠️ Explanation required before running analysis.")
-
-            is_ext = delay_cat in EXTERNAL_CATEGORIES
-            if is_ext:
-                st.markdown('<span class="badge badge-blue">🔵 External — No penalty applied</span>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<span class="badge badge-red">🔴 Internal — −{penalty} marks deducted</span>', unsafe_allow_html=True)
-
-        st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-        parts_out.append(dict(
-            name=part_name,
-            mc=part_mc,
-            description=part_desc,
-            pic=part_pic,
-            original_deadline=part_deadline, # Save the part-specific deadline
-            actual_finish=actual_finish,
-            actual_start=actual_start,
-            planned_start=planned_start,
-            planned_end=planned_end,
-            predecessor_delay_days=0, # Forced 0 as per Independent Mode
-            delay_category=delay_cat if actual_finish and effective_deadline and actual_finish > effective_deadline else None,
-            delay_reason=delay_reason if actual_finish and effective_deadline and actual_finish > effective_deadline else None,
-        ))
-
-    if to_delete is not None:
-        parts_state.pop(to_delete)
-        st.rerun()
-
-    return parts_out
+    saved_at = payload.get("saved_at", "unknown time")
+    _log(f"=== LOAD COMPLETE ===", "INFO")
+    _log(f"Successfully loaded {len(clean)} project(s)", "INFO")
+    return clean, f"Loaded {len(clean)} project(s) — saved {saved_at[:19].replace('T', ' at ')}"
