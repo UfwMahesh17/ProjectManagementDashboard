@@ -27,9 +27,9 @@ def gantt_chart(
     project_start: date,
 ) -> go.Figure:
     """
-    Cascade Gantt: Shows each department starting EXACTLY when the previous one actually finished.
-    Each department bar is visually positioned in cascade sequence on the timeline.
-    Blue bars = Planned baseline | Teal bars = Actual cascade path
+    Cascade Gantt: Shows each department's PLANNED vs ACTUAL dates.
+    Uses department's own planned_start/planned_end and cascades actual dates.
+    Blue bars = Planned (from dept planned dates) | Teal bars = Actual (cascade from parts)
     """
     rows = []
     sorted_depts = sorted(dept_results, key=lambda d: d.order, reverse=True)
@@ -39,12 +39,12 @@ def gantt_chart(
     cumulative_actual_end = project_start
     
     for dr in sorted(dept_results, key=lambda d: d.order):
-        # Get the actual finish date of this department
+        # Get the actual finish date of this department from its parts
         finished_parts = [p for p in dr.parts if p.actual_finish is not None]
         if finished_parts:
             dept_actual_end = max(p.actual_finish for p in finished_parts)
         else:
-            # If not finished, use a theoretical end (planned_end or original_end)
+            # If not finished, use planned end if available, otherwise original_end
             dept_actual_end = dr.planned_end if dr.planned_end else dr.original_end
         
         # This department starts from when the previous one actually ended
@@ -52,17 +52,26 @@ def gantt_chart(
         # Update cumulative for next department
         cumulative_actual_end = dept_actual_end + timedelta(days=1)
 
-    # First pass: add planned baseline bars (for reference, less prominent)
+    # Calculate the earliest planned start date for x-axis reference
+    earliest_planned = min(
+        (dr.planned_start if dr.planned_start else dr.original_start for dr in dept_results),
+        default=project_start
+    )
+
+    # First pass: add PLANNED bars using department's planned_start and planned_end
     for dr in sorted_depts:
+        planned_start = dr.planned_start if dr.planned_start else dr.original_start
+        planned_end = dr.planned_end if dr.planned_end else dr.original_end
+        
         rows.append(dict(
             Task=f"{dr.name}",
-            Start=dr.original_start,
-            Finish=dr.original_end + timedelta(days=1),
-            Type="Planned Baseline",
+            Start=planned_start,
+            Finish=planned_end + timedelta(days=1),
+            Type="Planned",
             Marks=None,
         ))
 
-    # Second pass: add actual cascade bars (main focus - prominently positioned)
+    # Second pass: add ACTUAL cascade bars
     for dr in sorted_depts:
         # Actual cascade bar (starts from when previous dept actually finished)
         actual_start = actual_starts.get(dr.name, dr.original_start)
@@ -73,15 +82,18 @@ def gantt_chart(
                 Task=f"{dr.name}",
                 Start=actual_start,
                 Finish=actual_end + timedelta(days=1),
-                Type="Actual Cascade",
+                Type="Actual",
                 Marks=None,
             ))
+        else:
+            # If not started, show as pending (no actual bar)
+            pass
 
     df = pd.DataFrame(rows)
 
     color_map = {
-        "Planned Baseline": "#34495E",  # Muted blue-grey
-        "Actual Cascade": PALETTE["shifted"],  # Bright teal
+        "Planned": "#34495E",  # Muted blue-grey
+        "Actual": PALETTE["shifted"],  # Bright teal
     }
 
     fig = px.timeline(
@@ -94,11 +106,11 @@ def gantt_chart(
         title="<b>Project Timeline — Planned vs Actual Cascade</b>",
     )
     
-    # Style the bars: Planned baseline is subtle, Actual Cascade is prominent
+    # Style the bars: Planned is subtle, Actual is prominent
     for trace in fig.data:
-        if trace.name == "Planned Baseline":
-            trace.update(opacity=0.35, marker_line_width=0.5)
-        else:  # Actual Cascade
+        if trace.name == "Planned":
+            trace.update(opacity=0.40, marker_line_width=0.5)
+        else:  # Actual
             trace.update(opacity=0.95, marker_line_width=2,
                         marker_line_color="rgba(255,255,255,0.5)")
 
@@ -109,7 +121,7 @@ def gantt_chart(
             continue
         latest = max(p.actual_finish for p in finished)
         
-        # Compare against planned end (not original)
+        # Compare against department's planned end
         planned_deadline = dr.planned_end if dr.planned_end else dr.original_end
         on_time = latest <= planned_deadline
         marker_color = "#27AE60" if on_time else PALETTE["actual"]
@@ -132,11 +144,17 @@ def gantt_chart(
     fig.update_layout(
         height=400,
         xaxis_title="Date",
+        xaxis=dict(
+            range=[earliest_planned, max(
+                (dr.planned_end if dr.planned_end else dr.original_end for dr in dept_results),
+                default=project_start
+            ) + timedelta(days=1)],
+            showgrid=True, gridcolor="#1F3044", tickfont=dict(size=10)
+        ),
         yaxis_title="",
         legend_title_text="Legend",
         legend=dict(orientation="h", yanchor="bottom", y=1.02,
                     xanchor="right", x=1),
-        xaxis=dict(showgrid=True, gridcolor="#1F3044", tickfont=dict(size=10)),
     )
     return fig
 
