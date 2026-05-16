@@ -89,12 +89,8 @@ class PartEntry:
         return self.planned_start + timedelta(days=self.predecessor_delay_days)
 
     def _calculate(self):
-        # FORCE cascading to 0 for calculation
-        self.predecessor_delay_days = 0 
-        self.adjusted_deadline = self.original_deadline
-        
         # ── Start-delay analysis ──────────────────────────────────────────────
-        adj_start = self.planned_start  # Use planned start directly
+        adj_start = self.adjusted_start  # Use adjusted start (with cascade delay)
         if self.actual_start and adj_start:
             self.start_delay_days = max(0, (self.actual_start - adj_start).days)
         else:
