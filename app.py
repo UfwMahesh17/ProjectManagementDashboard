@@ -560,11 +560,42 @@ has **zero impact** on the next department's deadline.
                    for p in dr.parts if p.actual_finish and p.delay_days > 0]
         if delayed:
             section_label("Delay Log")
+            
+            # Show cascade delay visual
+            with st.expander("📊 How delays cascade through departments", expanded=True):
+                st.markdown("""
+### Delay Cascade Timeline
+Delays propagate sequentially through departments:
+- 🏭 **Design** completes **X days late** → shifts Purchase start by X days
+- 🏭 **Purchase** completes **Y days late** → shifts Manufacturing start by (X+Y) days
+- 🏭 **Manufacturing** → **Assembly** → **Testing**
+
+**Mark Penalty:** Each day of delay reduces marks by **0.5 per department**.
+If Design is 2 days late: All downstream departments have adjusted deadlines pushed by 2 days.
+""")
+                
+                # Visual cascade table
+                cascade_data = []
+                running_delay = 0
+                for dr in sorted_results:
+                    cascade_data.append({
+                        "Department": dr.name,
+                        "Dept Delay (days)": dr.actual_delay_out,
+                        "Accumulated Delay": running_delay,
+                        "Adjusted Deadline": (dr.planned_end + timedelta(days=running_delay)).strftime("%d %b %Y") if dr.planned_end else "—",
+                        "Marks": f"{dr.avg_marks:.0f}",
+                    })
+                    running_delay += dr.actual_delay_out
+                
+                st.dataframe(pd.DataFrame(cascade_data), use_container_width=True, hide_index=True)
+            
             d_rows = []
             for dname, p in delayed:
                 d_rows.append({
                     "Department": dname,
                     "Part":       p.name,
+                    "MC":         p.mc,
+                    "PIC":        getattr(p, "pic", "—"),
                     "Delay Days": p.delay_days,
                     "Category":   p.delay_category or "—",
                     "Type":       "External" if p.is_external else "Internal",
