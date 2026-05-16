@@ -27,39 +27,61 @@ def gantt_chart(
     project_start: date,
 ) -> go.Figure:
     """
-    Dual-bar Gantt: Original Baseline (navy) vs Shifted Window (teal).
-    Actual finish markers overlaid as scatter points.
+    Cascade Gantt: Shows each department starting EXACTLY when the previous one actually finished.
+    Each department bar is visually positioned in cascade sequence on the timeline.
+    Blue bars = Planned baseline | Teal bars = Actual cascade path
     """
     rows = []
     sorted_depts = sorted(dept_results, key=lambda d: d.order, reverse=True)
 
-    for dr in sorted_depts:
-        dept_label = dr.name
+    # Calculate actual cascade starts based on predecessor actual finishes
+    actual_starts = {}
+    cumulative_actual_end = project_start
+    
+    for dr in sorted(dept_results, key=lambda d: d.order):
+        # Get the actual finish date of this department
+        finished_parts = [p for p in dr.parts if p.actual_finish is not None]
+        if finished_parts:
+            dept_actual_end = max(p.actual_finish for p in finished_parts)
+        else:
+            # If not finished, use a theoretical end (planned_end or original_end)
+            dept_actual_end = dr.planned_end if dr.planned_end else dr.original_end
+        
+        # This department starts from when the previous one actually ended
+        actual_starts[dr.name] = cumulative_actual_end
+        # Update cumulative for next department
+        cumulative_actual_end = dept_actual_end + timedelta(days=1)
 
-        # Original baseline bar
+    # First pass: add planned baseline bars (for reference, less prominent)
+    for dr in sorted_depts:
         rows.append(dict(
-            Task=dept_label,
+            Task=f"{dr.name}",
             Start=dr.original_start,
             Finish=dr.original_end + timedelta(days=1),
-            Type="Original Baseline",
+            Type="Planned Baseline",
             Marks=None,
         ))
 
-        # Shifted bar (only if there is a shift)
-        if dr.predecessor_delay > 0:
+    # Second pass: add actual cascade bars (main focus - prominently positioned)
+    for dr in sorted_depts:
+        # Actual cascade bar (starts from when previous dept actually finished)
+        actual_start = actual_starts.get(dr.name, dr.original_start)
+        finished_parts = [p for p in dr.parts if p.actual_finish is not None]
+        if finished_parts:
+            actual_end = max(p.actual_finish for p in finished_parts)
             rows.append(dict(
-                Task=dept_label,
-                Start=dr.shifted_start,
-                Finish=dr.shifted_end + timedelta(days=1),
-                Type="Shifted Window",
+                Task=f"{dr.name}",
+                Start=actual_start,
+                Finish=actual_end + timedelta(days=1),
+                Type="Actual Cascade",
                 Marks=None,
             ))
 
     df = pd.DataFrame(rows)
 
     color_map = {
-        "Original Baseline": PALETTE["baseline"],
-        "Shifted Window":    PALETTE["shifted"],
+        "Planned Baseline": "#34495E",  # Muted blue-grey
+        "Actual Cascade": PALETTE["shifted"],  # Bright teal
     }
 
     fig = px.timeline(
@@ -69,18 +91,27 @@ def gantt_chart(
         y="Task",
         color="Type",
         color_discrete_map=color_map,
-        title="<b>Project Timeline — Baseline vs Shifted Path</b>",
+        title="<b>Project Timeline — Planned vs Actual Cascade</b>",
     )
-    fig.update_traces(opacity=0.82, marker_line_width=1,
-                      marker_line_color="rgba(255,255,255,0.3)")
+    
+    # Style the bars: Planned baseline is subtle, Actual Cascade is prominent
+    for trace in fig.data:
+        if trace.name == "Planned Baseline":
+            trace.update(opacity=0.35, marker_line_width=0.5)
+        else:  # Actual Cascade
+            trace.update(opacity=0.95, marker_line_width=2,
+                        marker_line_color="rgba(255,255,255,0.5)")
 
-    # Actual finish markers (scatter)
+    # Actual finish markers (scatter) - show with small diamonds
     for dr in sorted_depts:
         finished = [p for p in dr.parts if p.actual_finish is not None]
         if not finished:
             continue
         latest = max(p.actual_finish for p in finished)
-        on_time = latest <= dr.shifted_end
+        
+        # Compare against planned end (not original)
+        planned_deadline = dr.planned_end if dr.planned_end else dr.original_end
+        on_time = latest <= planned_deadline
         marker_color = "#27AE60" if on_time else PALETTE["actual"]
         label = "On Time ✓" if on_time else "Late ✗"
 
@@ -99,7 +130,7 @@ def gantt_chart(
 
     _apply_dark_theme(fig)
     fig.update_layout(
-        height=380,
+        height=400,
         xaxis_title="Date",
         yaxis_title="",
         legend_title_text="Legend",
@@ -154,8 +185,16 @@ def efficiency_bar_chart(dept_results: list[DepartmentResult]) -> go.Figure:
 
 
 def marks_gauge(dept_name: str, marks: float) -> go.Figure:
-    """Mini gauge widget for a single department."""
+    """Mini gauge widget for a single department with cumulative marks."""
+    # Color based on efficiency relative to expected max (100 per part)
+    # For a single-part department, 80+ is green, 50+ is amber, <50 is red
+    # For multi-part departments, scale accordingly
     color = "#27AE60" if marks >= 80 else ("#F39C12" if marks >= 50 else "#E74C3C")
+    
+    # Set gauge range based on marks value
+    # If marks > 100, scale the range to accommodate it
+    max_range = max(100, int(marks * 1.2) + 20)  # Show some headroom
+    
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=marks,
@@ -163,15 +202,15 @@ def marks_gauge(dept_name: str, marks: float) -> go.Figure:
         title={"text": dept_name, "font": {"color": "#E0E0E0", "size": 13}},
         number={"font": {"color": color, "size": 26}},
         gauge={
-            "axis": {"range": [0, 100], "tickcolor": "#aaa",
+            "axis": {"range": [0, max_range], "tickcolor": "#aaa",
                      "tickfont": {"size": 9}},
             "bar": {"color": color},
             "bgcolor": "#1F3044",
             "bordercolor": "#2C3E50",
             "steps": [
-                {"range": [0, 50],  "color": "#2D1515"},
-                {"range": [50, 80], "color": "#2D2215"},
-                {"range": [80, 100],"color": "#152D1D"},
+                {"range": [0, max_range * 0.5],  "color": "#2D1515"},
+                {"range": [max_range * 0.5, max_range * 0.8], "color": "#2D2215"},
+                {"range": [max_range * 0.8, max_range], "color": "#152D1D"},
             ],
             "threshold": {
                 "line": {"color": "white", "width": 2},
