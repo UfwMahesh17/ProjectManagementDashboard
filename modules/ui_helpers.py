@@ -839,10 +839,27 @@ def render_part_inputs(
             "PIC", value=part.get("pic", ""),
             key=f"{key_prefix}_p{i}_pic", placeholder="Name"
         )
-        planned_start = c_ps.date_input("Planned start", value=part.get("planned_start"), key=f"{key_prefix}_p{i}_ps")
-        planned_end   = c_pe.date_input("Planned end",   value=part.get("planned_end"),   key=f"{key_prefix}_p{i}_pe")
-        actual_start  = c_as.date_input("Actual start",  value=part.get("actual_start"),  key=f"{key_prefix}_p{i}_as")
-        actual_finish = c_af.date_input("Actual finish", value=part.get("actual_finish"), key=f"{key_prefix}_p{i}_af")
+        
+        # ── Date inputs: Only save if user explicitly set them ────────────────
+        # Store original values to detect if user changed them
+        orig_ps = part.get("planned_start")
+        orig_pe = part.get("planned_end")
+        orig_as = part.get("actual_start")
+        orig_af = part.get("actual_finish")
+        
+        # Use dept_original_end as default to show meaningful date, not today
+        default_date = dept_original_end if not orig_ps else orig_ps
+        
+        ps_input = c_ps.date_input("Planned start", value=orig_ps or default_date, key=f"{key_prefix}_p{i}_ps")
+        pe_input = c_pe.date_input("Planned end",   value=orig_pe or default_date,   key=f"{key_prefix}_p{i}_pe")
+        as_input = c_as.date_input("Actual start",  value=orig_as or date.today(),  key=f"{key_prefix}_p{i}_as")
+        af_input = c_af.date_input("Actual finish", value=orig_af or date.today(), key=f"{key_prefix}_p{i}_af")
+        
+        # ── Convert back to None if user didn't change from original ──────────
+        planned_start = ps_input if orig_ps else (ps_input if ps_input != default_date else None)
+        planned_end   = pe_input if orig_pe else (pe_input if pe_input != default_date else None)
+        actual_start  = as_input if orig_as else (as_input if as_input != date.today() else None)
+        actual_finish = af_input if orig_af else (af_input if af_input != date.today() else None)
         
         c_del.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
         if c_del.button("✕", key=f"{key_prefix}_p{i}_del", help="Remove this part"):
