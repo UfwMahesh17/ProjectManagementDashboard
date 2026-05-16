@@ -84,11 +84,15 @@ with st.sidebar:
         print("[APP] Serializing projects for save...", flush=True)
         st.session_state["_save_bytes"] = serialize_projects(st.session_state.projects)
         print(f"[APP] Serialized {len(st.session_state.projects)} project(s)", flush=True)
+        # Clear upload tracking when new save is generated - ensures re-upload will process
+        st.session_state["_last_upload_hash"] = None
+        st.session_state["_last_upload_size"] = None
+        print(f"[APP] Cleared upload hash - ready for fresh download/upload cycle", flush=True)
     save_bytes = st.session_state["_save_bytes"]
 
     col1, col2 = st.columns(2)
     with col1:
-        download_clicked = st.download_button(
+        st.download_button(
             "⬇️  Save progress (.json)",
             data=save_bytes,
             file_name=f"adwik_wms_{date.today().isoformat()}.json",
@@ -96,14 +100,11 @@ with st.sidebar:
             width='stretch',
             help="Downloads your workspace as JSON. Re-upload to restore anytime.",
         )
-        # When download button is clicked, clear the hash so re-upload is processed
-        if download_clicked:
-            st.session_state["_last_upload_hash"] = None
-            print(f"[APP] Download initiated - cleared upload hash for next file", flush=True)
     
     with col2:
         if st.button("🔄 Reset Load State", help="Clear saved file selection to test re-upload", width='stretch'):
             st.session_state["_last_upload_hash"] = None
+            st.session_state["_last_upload_size"] = None
             print(f"[APP] Upload state reset by user", flush=True)
             st.rerun()
     
@@ -118,16 +119,28 @@ with st.sidebar:
         content = uploaded.getvalue()
         # Use deterministic hash (MD5) instead of Python's hash() which changes between runs
         file_hash = hashlib.md5(content).hexdigest() if content else None
+        last_hash = st.session_state.get("_last_upload_hash")
+        last_size = st.session_state.get("_last_upload_size")
+        current_size = len(content)
         
         # Check if this is a new file (different from previously loaded file)
-        if file_hash and file_hash != st.session_state.get("_last_upload_hash"):
+        # Compare both hash AND file size to catch browser cache issues
+        is_new_file = (file_hash and file_hash != last_hash) or (current_size != last_size)
+        
+        if is_new_file:
             print(f"[APP] New file detected - processing upload", flush=True)
+            if file_hash != last_hash:
+                print(f"[APP]   → Hash changed: {last_hash[:8]}... → {file_hash[:8]}...", flush=True)
+            if current_size != last_size:
+                print(f"[APP]   → Size changed: {last_size} bytes → {current_size} bytes", flush=True)
+            
             loaded, feedback = deserialize_projects(content)
             if loaded:
                 print(f"[APP] ✅ Deserialization successful: {len(loaded)} project(s) loaded", flush=True)
                 print(f"[APP] First project: code={loaded[0].get('code')}, name={loaded[0].get('name')}", flush=True)
-                # Store the hash to prevent re-loading on every rerun
+                # Store the hash AND size to prevent re-loading on every rerun
                 st.session_state["_last_upload_hash"] = file_hash
+                st.session_state["_last_upload_size"] = current_size
                 st.session_state.projects = loaded
                 st.session_state.active_project_idx = 0
                 st.session_state.load_feedback = f"✅ {feedback}"
@@ -136,11 +149,20 @@ with st.sidebar:
                 print(f"[APP] ❌ Deserialization failed: {feedback}", flush=True)
                 st.session_state.load_feedback = f"❌ {feedback}"
         else:
-            print(f"[APP] ⚠️  File not processed (same as previously loaded or no hash)", flush=True)
-            st.warning("This file was already loaded. Click '🔄 Reset Load State' to reload it.", icon="⚠️")
+            print(f"[APP] ⚠️  File not processed - same as previously loaded (hash & size match)", flush=True)
+            print(f"[APP]   → Hash: {file_hash[:8]}... | Size: {current_size} bytes", flush=True)
+            print(f"[APP]   → Previous: {last_hash[:8] if last_hash else 'None'}... | Size: {last_size} bytes", flush=True)
+            st.warning(
+                "**File already loaded.** This appears to be the same file you uploaded before.\n\n"
+                "**Options:**\n"
+                "- Click **🔄 Reset Load State** to re-process this file\n"
+                "- Download a fresh copy and re-upload",
+                icon="⚠️"
+            )
     else:
         # Clear upload hash when no file is selected
         st.session_state["_last_upload_hash"] = None
+        st.session_state["_last_upload_size"] = None
 
     if st.session_state.load_feedback:
         fn = st.success if st.session_state.load_feedback.startswith("✅") else st.error
