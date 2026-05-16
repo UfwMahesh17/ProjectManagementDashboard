@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 from datetime import date, timedelta
 import pandas as pd
+import hashlib
 
 from modules.core import (
     PartEntry, DepartmentResult,
@@ -115,7 +116,8 @@ with st.sidebar:
     if uploaded:
         print(f"[APP] File uploaded: {uploaded.name}, size: {len(uploaded.getvalue())} bytes", flush=True)
         content = uploaded.getvalue()
-        file_hash = hash(content) if content else None
+        # Use deterministic hash (MD5) instead of Python's hash() which changes between runs
+        file_hash = hashlib.md5(content).hexdigest() if content else None
         
         # Check if this is a new file (different from previously loaded file)
         if file_hash and file_hash != st.session_state.get("_last_upload_hash"):
