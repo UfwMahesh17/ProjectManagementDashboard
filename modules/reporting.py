@@ -238,6 +238,61 @@ def _build_detail(ws, project_code, dept_results):
     for col, w in zip(cols, widths):
         ws.column_dimensions[col].width = w
 
+    # Add Department-wise Performance Chart
+    chart_start_row = row_num + 3
+    ws.merge_cells(f"A{chart_start_row}:D{chart_start_row}")
+    ws[f"A{chart_start_row}"] = "DEPARTMENT-WISE PERFORMANCE"
+    ws[f"A{chart_start_row}"].font = Font(bold=True, size=11, color="FFFFFF", name="Calibri")
+    ws[f"A{chart_start_row}"].fill = PatternFill("solid", start_color=STEEL_BLUE)
+    ws[f"A{chart_start_row}"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[chart_start_row].height = 22
+
+    # Headers for department summary
+    summary_headers = ["Department", "Score", "Efficiency %", "Status"]
+    summary_cols = list("ABCD")
+    summary_row = chart_start_row + 1
+    for col, h in zip(summary_cols, summary_headers):
+        ws[f"{col}{summary_row}"] = h
+    _hdr(ws, summary_row, summary_cols, bg=STEEL_BLUE)
+
+    # Department data rows
+    dept_data_start = summary_row + 1
+    for dr in sorted(dept_results, key=lambda d: d.order):
+        bg = LIGHT_ROW if (dept_data_start - summary_row - 1) % 2 == 0 else WHITE
+        
+        dept_score = round(dr.avg_marks, 1)
+        eff_pct = f"{(dr.avg_marks / 100 * 100):.0f}%"
+        status = "✅ Excellent" if dept_score >= 80 else "✅ Good" if dept_score >= 50 else "❌ At Risk"
+        
+        dept_row = [dr.name, dept_score, eff_pct, status]
+        for col, val in zip(summary_cols, dept_row):
+            ws[f"{col}{dept_data_start}"] = val
+        _data(ws, dept_data_start, summary_cols, bg)
+        dept_data_start += 1
+
+    # Adjust column widths for summary
+    ws.column_dimensions["A"].width = 16
+    ws.column_dimensions["B"].width = 10
+    ws.column_dimensions["C"].width = 14
+    ws.column_dimensions["D"].width = 16
+
+    # Add bar chart for department efficiency
+    chart = BarChart()
+    chart.type = "col"
+    chart.title = "Department Efficiency Scores"
+    chart.y_axis.title = "Score (out of 100)"
+    chart.x_axis.title = "Department"
+    chart.style = 10
+    chart.width = 18
+    chart.height = 10
+    
+    last_summary_row = dept_data_start - 1
+    data_ref = Reference(ws, min_col=2, min_row=summary_row, max_row=last_summary_row)
+    cats_ref = Reference(ws, min_col=1, min_row=dept_data_start - len(dept_results), max_row=last_summary_row)
+    chart.add_data(data_ref, titles_from_data=True)
+    chart.set_categories(cats_ref)
+    ws.add_chart(chart, f"A{last_summary_row + 2}")
+
 
 def _build_delay_log(ws, project_code, dept_results):
     ws.merge_cells("A1:G1")
