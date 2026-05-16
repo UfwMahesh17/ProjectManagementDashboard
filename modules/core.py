@@ -304,13 +304,22 @@ def build_department_timeline(
 
 def propagate_delays(dept_results: list[DepartmentResult]) -> list[DepartmentResult]:
     """
-    Walk departments in order.
-    Update: Deadline cascading is disabled. Each department uses its individual dates.
+    Walk departments in order and CASCADE delays from one to the next.
+    Each department's finish delay becomes the next department's predecessor delay.
     """
+    cumulative_delay = 0
+    
     for dr in sorted(dept_results, key=lambda d: d.order):
-        dr.predecessor_delay = 0
+        # Set the predecessor delay for this department
+        dr.predecessor_delay = cumulative_delay
+        
+        # Recalculate all parts with the new predecessor delay
         for part in dr.parts:
-            part.predecessor_delay_days = 0
-            part.adjusted_deadline = part.original_deadline
+            part.predecessor_delay_days = cumulative_delay
+            part.adjusted_deadline = part.original_deadline + timedelta(days=cumulative_delay)
             part._calculate()
+        
+        # Get this department's finish delay to cascade to the next
+        cumulative_delay += dr.actual_delay_out
+    
     return dept_results
