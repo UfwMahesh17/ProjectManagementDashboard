@@ -88,7 +88,7 @@ with st.sidebar:
         data=save_bytes,
         file_name=f"adwik_wms_{date.today().isoformat()}.json",
         mime="application/json",
-        use_container_width=True,
+        width='stretch',
         help="Downloads your workspace as JSON. Re-upload to restore anytime.",
     )
     uploaded = st.file_uploader(
@@ -133,12 +133,12 @@ with st.sidebar:
     )
     st.session_state.active_project_idx = sel_idx
     c1, c2 = st.columns(2)
-    if c1.button("➕ New", use_container_width=True):
+    if c1.button("➕ New", width='stretch'):
         n = len(st.session_state.projects) + 1
         st.session_state.projects.append(_new_project(n))
         st.session_state.active_project_idx = len(st.session_state.projects) - 1
         st.rerun()
-    if c2.button("🗑 Delete", use_container_width=True,
+    if c2.button("🗑 Delete", width='stretch',
                  disabled=len(st.session_state.projects) <= 1):
         st.session_state.projects.pop(sel_idx)
         st.session_state.active_project_idx = max(0, sel_idx - 1)
@@ -182,7 +182,7 @@ with st.sidebar:
             dept["planned_start"] = st.date_input("Planned Start", value=dept.get("planned_start"), key=f"dps_{sel_idx}_{i}")
             dept["planned_end"]   = st.date_input("Planned End",   value=dept.get("planned_end"),   key=f"dpe_{sel_idx}_{i}")
             dept["order"] = i + 1
-            if st.button("Remove this department", key=f"deldept_{sel_idx}_{i}", use_container_width=True):
+            if st.button("Remove this department", key=f"deldept_{sel_idx}_{i}", width='stretch'):
                 to_delete = i
 
     if to_delete is not None:
@@ -193,20 +193,20 @@ with st.sidebar:
         st.rerun()
 
     ca, cb = st.columns(2)
-    if ca.button("➕ Add", use_container_width=True):
+    if ca.button("➕ Add", width='stretch'):
         nm = f"Dept {len(depts)+1}"
         depts.append({"name": nm, "duration": 30, "order": len(depts)+1,
                       "planned_start": None, "planned_end": None})
         proj["parts_state"][nm] = [{"name": "Part 1"}]
         st.rerun()
-    if cb.button("↩ Reset", use_container_width=True):
+    if cb.button("↩ Reset", width='stretch'):
         proj["departments"] = [d.copy() for d in DEFAULT_DEPARTMENTS]
         proj["parts_state"] = {d["name"]: [{"name": "Part 1"}] for d in DEFAULT_DEPARTMENTS}
         proj["results"] = {}
         st.rerun()
 
     st.divider()
-    run_analysis = st.button("▶  Run Analysis", use_container_width=True)
+    run_analysis = st.button("▶  Run Analysis", width='stretch')
     st.markdown(
         '<div style="font-size:0.7rem;color:#6B7A99;text-align:center;margin-top:6px">'
         'Enter all part dates first, then run.</div>',
@@ -311,7 +311,7 @@ with tab_all:
             "Total Delay":     f"{delay}d" if results else "—",
             "Status":          "On Track" if results and delay==0 else (f"{delay}d delay" if results else "Not analysed"),
         })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -540,7 +540,7 @@ with tab_analytics:
                 "Recovered":      "⚡ Yes" if getattr(dr,"any_racing",False) else "—",
                 "Score":          round(dr.avg_marks, 1),
             })
-        st.dataframe(pd.DataFrame(pva), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(pva), width='stretch', hide_index=True)
 
         with st.expander("ℹ️  How cascade delay works"):
             st.markdown("""
@@ -580,14 +580,14 @@ If Design is 2 days late: All downstream departments have adjusted deadlines pus
                 for dr in sorted_results:
                     cascade_data.append({
                         "Department": dr.name,
-                        "Dept Delay (days)": dr.actual_delay_out,
-                        "Accumulated Delay": running_delay,
-                        "Adjusted Deadline": (dr.planned_end + timedelta(days=running_delay)).strftime("%d %b %Y") if dr.planned_end else "—",
-                        "Marks": f"{dr.avg_marks:.0f}",
+                        "Dept Delay (days)": dr.actual_delay_out if dr.actual_delay_out > 0 else 0,
+                        "Accumulated Delay": running_delay if running_delay > 0 else 0,
+                        "Adjusted Deadline": (dr.planned_end + timedelta(days=running_delay)).strftime("%d %b %Y") if dr.planned_end else "Not Set",
+                        "Marks": int(dr.avg_marks),
                     })
                     running_delay += dr.actual_delay_out
                 
-                st.dataframe(pd.DataFrame(cascade_data), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(cascade_data), width='stretch', hide_index=True)
             
             d_rows = []
             for dname, p in delayed:
@@ -603,7 +603,7 @@ If Design is 2 days late: All downstream departments have adjusted deadlines pus
                     "Score":      round(p.marks, 1),
                     "Reason":     (p.delay_reason or "—")[:80],
                 })
-            st.dataframe(pd.DataFrame(d_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(d_rows), width='stretch', hide_index=True)
         else:
             st.markdown(
                 '<div class="wms-success-box">🎉 No delays recorded for this project. All departments on track!</div>',
@@ -689,7 +689,7 @@ with tab_report:
             data=report_bytes,
             file_name=fname,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width='stretch',
         )
         st.caption(f"Covers {len(analysed)} project(s) · Generated {date.today().strftime('%d %b %Y')}")
 
@@ -709,7 +709,7 @@ with tab_report:
                         "Actual Start":  pt.actual_start.strftime("%d %b %Y") if getattr(pt,"actual_start",None) else "—",
                         "Original End":  pt.original_deadline.strftime("%d %b %Y"),
                         "Actual Finish": pt.actual_finish.strftime("%d %b %Y") if pt.actual_finish else "⏳ Pending",
-                        "Delay (days)":  pt.delay_days if pt.actual_finish else "—",
-                        "Marks":         round(pt.marks,1) if pt.actual_finish else "—",
+                        "Delay (days)":  pt.delay_days if pt.actual_finish else 0,
+                        "Marks":         round(pt.marks,1) if pt.actual_finish else 0,
                     })
-        st.dataframe(pd.DataFrame(prev_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(prev_rows), width='stretch', hide_index=True)
