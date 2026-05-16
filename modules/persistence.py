@@ -64,6 +64,7 @@ def serialize_projects(projects: list[dict]) -> bytes:
     for p in projects:
         saveable.append({
             "code":        p.get("code", ""),
+            "name":        p.get("name", ""),
             "start":       p.get("start"),
             "description": p.get("description", ""),
             "departments": p.get("departments", []),
