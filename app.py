@@ -97,20 +97,24 @@ with st.sidebar:
         help="Select a previously saved .json file",
     )
     if uploaded:
-        # Use a simpler check for the upload state
         content = uploaded.getvalue()
-        if content and (st.session_state.get("last_uploaded_name") != uploaded.name):
+        file_hash = hash(content) if content else None
+        
+        # Check if this is a new file (different from previously loaded file)
+        if file_hash and file_hash != st.session_state.get("_last_upload_hash"):
             loaded, feedback = deserialize_projects(content)
             if loaded:
+                # Store the hash to prevent re-loading on every rerun
+                st.session_state["_last_upload_hash"] = file_hash
                 st.session_state.projects = loaded
                 st.session_state.active_project_idx = 0
                 st.session_state.load_feedback = f"✅ {feedback}"
-                st.session_state.last_uploaded_name = uploaded.name
                 st.rerun()
             else:
                 st.session_state.load_feedback = f"❌ {feedback}"
     else:
-        st.session_state.last_uploaded_name = None
+        # Clear upload hash when no file is selected
+        st.session_state["_last_upload_hash"] = None
 
     if st.session_state.load_feedback:
         fn = st.success if st.session_state.load_feedback.startswith("✅") else st.error
@@ -667,6 +671,9 @@ with tab_report:
                         "Project":       p["code"],
                         "Department":    dr.name,
                         "Part":          pt.name,
+                        "MC":            pt.mc,
+                        "Description":   pt.description,
+                        "PIC":           getattr(pt, "pic", "—"),
                         "Planned End":   pt.planned_end.strftime("%d %b %Y") if pt.planned_end else "—",
                         "Actual Start":  pt.actual_start.strftime("%d %b %Y") if getattr(pt,"actual_start",None) else "—",
                         "Original End":  pt.original_deadline.strftime("%d %b %Y"),
